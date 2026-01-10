@@ -70,3 +70,121 @@ export interface SearchDocumentsRequest {
   query: string;
   tags?: string[];
 }
+
+// Security Configuration Types
+export type SecurityConfigType = 'SSL_CONFIG' | 'DATABASE_CREDENTIALS';
+
+export interface SslConfig {
+  id: string;
+  name: string;
+  description?: string;
+  trustStorePath?: string;
+  trustStorePassword?: string;
+  keyStorePath?: string;
+  keyStorePassword?: string;
+  verifyHostname: boolean;
+  createdAt: string;
+}
+
+export interface DatabaseCredentials {
+  id: string;
+  name: string;
+  description?: string;
+  jdbcUrl: string;
+  username: string;
+  password: string;
+  driverClassName?: string;
+  createdAt: string;
+}
+
+export interface SecurityConfigResponse {
+  id: string;
+  name: string;
+  description?: string;
+  type: SecurityConfigType;
+  createdAt: string;
+}
+
+export interface CreateSslConfigRequest {
+  name: string;
+  description?: string;
+  trustStorePath?: string;
+  trustStorePassword?: string;
+  keyStorePath?: string;
+  keyStorePassword?: string;
+  verifyHostname?: boolean;
+}
+
+export interface CreateDatabaseCredentialsRequest {
+  name: string;
+  description?: string;
+  jdbcUrl: string;
+  username: string;
+  password: string;
+  driverClassName?: string;
+}
+
+// Tool and Toolset Types
+export type ToolType = 'HTTP_ENDPOINT' | 'JDBC_QUERY';
+
+export interface ToolParameter {
+  name: string;
+  description?: string;
+  type: string;
+  required: boolean;
+  defaultValue?: string;
+}
+
+export interface HttpEndpointConfig {
+  url: string;
+  method: string;
+  headers: Record<string, string>;
+  bodyTemplate?: string;
+  sslConfigId?: string;
+}
+
+export interface JdbcQueryConfig {
+  queryTemplate: string;
+  databaseCredentialsId: string;
+}
+
+export interface Tool {
+  id: string;
+  name: string;
+  description?: string;
+  type: ToolType;
+  parameters: ToolParameter[];
+  httpConfig?: HttpEndpointConfig;
+  jdbcConfig?: JdbcQueryConfig;
+  createdAt: string;
+}
+
+export interface Toolset {
+  id: string;
+  name: string;
+  description?: string;
+  tools: Tool[];
+  createdAt: string;
+}
+
+export interface ToolsetResponse {
+  id: string;
+  name: string;
+  description?: string;
+  toolCount: number;
+  createdAt: string;
+}
+
+export interface CreateToolsetRequest {
+  name: string;
+  description?: string;
+}
+
+export interface CreateToolRequest {
+  name: string;
+  description?: string;
+  type: ToolType;
+  parameters?: ToolParameter[];
+  httpConfig?: HttpEndpointConfig;
+  jdbcConfig?: JdbcQueryConfig;
+}

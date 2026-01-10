@@ -80,3 +80,127 @@ data class SearchDocumentsRequest(
     val query: String,
     val tags: List<String>? = null
 )
+
+// Security Configuration Models
+enum class SecurityConfigType {
+    SSL_CONFIG,
+    DATABASE_CREDENTIALS
+}
+
+data class SslConfig(
+    val id: String = UUID.randomUUID().toString(),
+    val name: String,
+    val description: String? = null,
+    val trustStorePath: String? = null,
+    val trustStorePassword: String? = null,
+    val keyStorePath: String? = null,
+    val keyStorePassword: String? = null,
+    val verifyHostname: Boolean = true,
+    val createdAt: Instant = Instant.now()
+)
+
+data class DatabaseCredentials(
+    val id: String = UUID.randomUUID().toString(),
+    val name: String,
+    val description: String? = null,
+    val jdbcUrl: String,
+    val username: String,
+    val password: String,
+    val driverClassName: String? = null,
+    val createdAt: Instant = Instant.now()
+)
+
+data class SecurityConfigResponse(
+    val id: String,
+    val name: String,
+    val description: String?,
+    val type: SecurityConfigType,
+    val createdAt: Instant
+)
+
+data class CreateSslConfigRequest(
+    val name: String,
+    val description: String? = null,
+    val trustStorePath: String? = null,
+    val trustStorePassword: String? = null,
+    val keyStorePath: String? = null,
+    val keyStorePassword: String? = null,
+    val verifyHostname: Boolean = true
+)
+
+data class CreateDatabaseCredentialsRequest(
+    val name: String,
+    val description: String? = null,
+    val jdbcUrl: String,
+    val username: String,
+    val password: String,
+    val driverClassName: String? = null
+)
+
+// Tool and Toolset Models
+enum class ToolType {
+    HTTP_ENDPOINT,
+    JDBC_QUERY
+}
+
+data class ToolParameter(
+    val name: String,
+    val description: String? = null,
+    val type: String = "string",
+    val required: Boolean = false,
+    val defaultValue: String? = null
+)
+
+data class HttpEndpointConfig(
+    val url: String,
+    val method: String = "GET",
+    val headers: Map<String, String> = emptyMap(),
+    val bodyTemplate: String? = null,
+    val sslConfigId: String? = null
+)
+
+data class JdbcQueryConfig(
+    val queryTemplate: String,
+    val databaseCredentialsId: String
+)
+
+data class Tool(
+    val id: String = UUID.randomUUID().toString(),
+    val name: String,
+    val description: String? = null,
+    val type: ToolType,
+    val parameters: List<ToolParameter> = emptyList(),
+    val httpConfig: HttpEndpointConfig? = null,
+    val jdbcConfig: JdbcQueryConfig? = null,
+    val createdAt: Instant = Instant.now()
+)
+
+data class Toolset(
+    val id: String = UUID.randomUUID().toString(),
+    val name: String,
+    val description: String? = null,
+    val tools: MutableList<Tool> = mutableListOf(),
+    val createdAt: Instant = Instant.now()
+)
+
+data class ToolsetResponse(
+    val id: String,
+    val name: String,
+    val description: String?,
+    val toolCount: Int,
+    val createdAt: Instant
+)
+
+data class CreateToolsetRequest(
+    val name: String,
+    val description: String? = null
+)
+
+data class CreateToolRequest(
+    val name: String,
+    val description: String? = null,
+    val type: ToolType,
+    val parameters: List<ToolParameter> = emptyList(),
+    val httpConfig: HttpEndpointConfig? = null,
+    val jdbcConfig: JdbcQueryConfig? = null
+)
