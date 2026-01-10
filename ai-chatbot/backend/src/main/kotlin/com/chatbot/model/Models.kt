@@ -49,3 +49,34 @@ data class MessageResponse(
     val userMessage: ChatMessage,
     val assistantMessage: ChatMessage
 )
+
+data class KnowledgeDocument(
+    val id: String = java.util.UUID.randomUUID().toString(),
+    val name: String,
+    val content: String,
+    val contentType: String,
+    val size: Long,
+    val uploadedAt: Instant = Instant.now(),
+    val tags: List<String> = emptyList()
+)
+
+data class UploadDocumentRequest(
+    val name: String,
+    val content: String,
+    val contentType: String,
+    val tags: List<String>? = null
+)
+
+data class DocumentResponse(
+    val id: String,
+    val name: String,
+    val contentType: String,
+    val size: Long,
+    val uploadedAt: Instant,
+    val tags: List<String>
+)
+
+data class SearchDocumentsRequest(
+    val query: String,
+    val tags: List<String>? = null
+)

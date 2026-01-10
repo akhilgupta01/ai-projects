@@ -39,3 +39,34 @@ export interface CreateSessionRequest {
 export interface SendMessageRequest {
   content: string;
 }
+
+export interface KnowledgeDocument {
+  id: string;
+  name: string;
+  content: string;
+  contentType: string;
+  size: number;
+  uploadedAt: string;
+  tags: string[];
+}
+
+export interface DocumentResponse {
+  id: string;
+  name: string;
+  contentType: string;
+  size: number;
+  uploadedAt: string;
+  tags: string[];
+}
+
+export interface UploadDocumentRequest {
+  name: string;
+  content: string;
+  contentType: string;
+  tags?: string[];
+}
+
+export interface SearchDocumentsRequest {
+  query: string;
+  tags?: string[];
+}
