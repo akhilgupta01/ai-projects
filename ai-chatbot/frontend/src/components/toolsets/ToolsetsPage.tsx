@@ -22,7 +22,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import * as api from '@/services/api';
-import type { ToolsetResponse, Toolset, Tool, ToolType, SslConfig, DatabaseCredentials } from '@/types/chat';
+import type { ToolsetResponse, Toolset, ToolType, SslConfig, DatabaseCredentials } from '@/types/chat';
 
 export function ToolsetsPage() {
   const [toolsets, setToolsets] = useState<ToolsetResponse[]>([]);
@@ -45,7 +45,7 @@ export function ToolsetsPage() {
   const [newHttpMethod, setNewHttpMethod] = useState('GET');
   const [newHttpHeaders, setNewHttpHeaders] = useState('');
   const [newHttpBodyTemplate, setNewHttpBodyTemplate] = useState('');
-  const [newHttpSslConfigId, setNewHttpSslConfigId] = useState('');
+  const [newHttpSslConfigId, setNewHttpSslConfigId] = useState<string | undefined>(undefined);
 
   const [newJdbcQuery, setNewJdbcQuery] = useState('');
   const [newJdbcDbCredentialsId, setNewJdbcDbCredentialsId] = useState('');
@@ -178,7 +178,7 @@ export function ToolsetsPage() {
     setNewHttpMethod('GET');
     setNewHttpHeaders('');
     setNewHttpBodyTemplate('');
-    setNewHttpSslConfigId('');
+    setNewHttpSslConfigId(undefined);
     setNewJdbcQuery('');
     setNewJdbcDbCredentialsId('');
   };
@@ -296,7 +296,6 @@ export function ToolsetsPage() {
                             <SelectValue placeholder="Select SSL config (optional)" />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="">None</SelectItem>
                             {sslConfigs.map((config) => (
                               <SelectItem key={config.id} value={config.id}>
                                 {config.name}
