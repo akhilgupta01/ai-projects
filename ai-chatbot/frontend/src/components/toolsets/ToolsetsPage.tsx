@@ -45,7 +45,7 @@ export function ToolsetsPage() {
   const [newHttpMethod, setNewHttpMethod] = useState('GET');
   const [newHttpHeaders, setNewHttpHeaders] = useState('');
   const [newHttpBodyTemplate, setNewHttpBodyTemplate] = useState('');
-  const [newHttpSslConfigId, setNewHttpSslConfigId] = useState<string | undefined>(undefined);
+  const [newHttpSslConfigId, setNewHttpSslConfigId] = useState<string | undefined>();
 
   const [newJdbcQuery, setNewJdbcQuery] = useState('');
   const [newJdbcDbCredentialsId, setNewJdbcDbCredentialsId] = useState('');
