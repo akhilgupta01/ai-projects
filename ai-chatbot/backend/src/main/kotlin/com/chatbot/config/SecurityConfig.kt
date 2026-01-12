@@ -1,5 +1,6 @@
 package com.chatbot.config
 
+import org.springframework.beans.factory.annotation.Value
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.security.config.annotation.web.builders.HttpSecurity
@@ -12,6 +13,12 @@ import org.springframework.security.oauth2.server.resource.authentication.JwtGra
 @Configuration
 @EnableWebSecurity
 class SecurityConfig {
+
+    @Value("\${jwt.authorities-claim-name}")
+    private lateinit var authoritiesClaimName: String
+
+    @Value("\${jwt.authority-prefix}")
+    private lateinit var authorityPrefix: String
 
     @Bean
     fun securityFilterChain(http: HttpSecurity): SecurityFilterChain {
@@ -35,8 +42,8 @@ class SecurityConfig {
     @Bean
     fun jwtAuthenticationConverter(): JwtAuthenticationConverter {
         val grantedAuthoritiesConverter = JwtGrantedAuthoritiesConverter()
-        grantedAuthoritiesConverter.setAuthoritiesClaimName("permissions")
-        grantedAuthoritiesConverter.setAuthorityPrefix("SCOPE_")
+        grantedAuthoritiesConverter.setAuthoritiesClaimName(authoritiesClaimName)
+        grantedAuthoritiesConverter.setAuthorityPrefix(authorityPrefix)
 
         val jwtAuthenticationConverter = JwtAuthenticationConverter()
         jwtAuthenticationConverter.setJwtGrantedAuthoritiesConverter(grantedAuthoritiesConverter)

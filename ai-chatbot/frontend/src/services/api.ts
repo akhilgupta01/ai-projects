@@ -24,6 +24,10 @@ import type {
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080';
 
 // Store for the auth token
+// Note: The token is managed by the OAuth2 context and passed here for API calls.
+// It's stored at module level for simplicity, as it's set once when the user logs in
+// and cleared when they log out. For more complex scenarios, consider using a
+// dedicated token management service or state management library.
 let authToken: string | null = null;
 
 export function setAuthToken(token: string | null) {
