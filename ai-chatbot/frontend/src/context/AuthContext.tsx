@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { AuthContext as OAuth2Context, AuthProvider as OAuth2Provider, TAuthConfig } from 'react-oauth2-code-pkce';
 import { oauth2Config } from '../config/oauth';
+import { setAuthToken } from '../services/api';
 
 interface AuthContextType {
   isAuthenticated: boolean;
@@ -66,6 +67,8 @@ const AuthProviderInternal: React.FC<AuthProviderWrapperProps> = ({ children }) 
     logOut();
     setIsAuthenticated(false);
     setUser(null);
+    // Clear the API token to ensure no stale token is used
+    setAuthToken(null);
   };
 
   const value: AuthContextType = {
