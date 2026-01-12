@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { ChatPage } from './components/chat/ChatPage';
 import { DocumentsPage } from './components/documents/DocumentsPage';
 import { SecurityConfigPage } from './components/security/SecurityConfigPage';
@@ -7,22 +7,12 @@ import { LoginPage } from './components/auth/LoginPage';
 import { MessageSquare, FileText, Shield, Wrench, LogOut } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useAuth } from './context/AuthContext';
-import { setAuthToken } from './services/api';
 
 type Page = 'chat' | 'documents' | 'security' | 'toolsets';
 
 function App() {
   const [currentPage, setCurrentPage] = useState<Page>('chat');
-  const { isAuthenticated, token, logout } = useAuth();
-
-  // Update API token when auth token changes
-  useEffect(() => {
-    if (token) {
-      setAuthToken(token);
-    } else {
-      setAuthToken(null);
-    }
-  }, [token]);
+  const { isAuthenticated, logout } = useAuth();
 
   // Show login page if not authenticated
   if (!isAuthenticated) {

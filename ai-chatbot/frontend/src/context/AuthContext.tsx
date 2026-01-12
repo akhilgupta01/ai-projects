@@ -50,6 +50,8 @@ const AuthProviderInternal: React.FC<AuthProviderWrapperProps> = ({ children }) 
   useEffect(() => {
     if (token) {
       setIsAuthenticated(true);
+      // Set the token in the API service for authenticated requests
+      setAuthToken(token);
       // Extract user info from token data if available
       if (tokenData) {
         setUser({
@@ -60,6 +62,7 @@ const AuthProviderInternal: React.FC<AuthProviderWrapperProps> = ({ children }) 
     } else {
       setIsAuthenticated(false);
       setUser(null);
+      setAuthToken(null);
     }
   }, [token, tokenData]);
 
