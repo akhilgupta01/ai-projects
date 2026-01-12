@@ -19,7 +19,7 @@ export const LoginPage = () => {
             </p>
           </div>
           <Button
-            onClick={login}
+            onClick={() => login()}
             className="w-full bg-blue-600 hover:bg-blue-700 text-white py-6 text-lg"
             size="lg"
           >
