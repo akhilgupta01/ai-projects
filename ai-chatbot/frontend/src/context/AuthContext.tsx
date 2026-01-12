@@ -33,6 +33,10 @@ export const AuthProviderWrapper: React.FC<AuthProviderWrapperProps> = ({ childr
     redirectUri: oauth2Config.redirectUri,
     scope: oauth2Config.scope,
     autoLogin: false,
+    // Add client_secret to token request parameters if provided
+    extraTokenParameters: oauth2Config.clientSecret ? {
+      client_secret: oauth2Config.clientSecret,
+    } : undefined,
   };
 
   return (
