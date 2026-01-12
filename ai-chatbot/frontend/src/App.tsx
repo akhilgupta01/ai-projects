@@ -78,7 +78,7 @@ function App() {
           variant="ghost"
           size="icon"
           className="text-slate-400 hover:text-white hover:bg-slate-800"
-          onClick={logout}
+          onClick={() => logout()}
           title="Logout"
         >
           <LogOut className="h-5 w-5" />
