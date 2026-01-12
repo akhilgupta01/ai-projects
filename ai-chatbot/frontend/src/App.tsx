@@ -3,13 +3,21 @@ import { ChatPage } from './components/chat/ChatPage';
 import { DocumentsPage } from './components/documents/DocumentsPage';
 import { SecurityConfigPage } from './components/security/SecurityConfigPage';
 import { ToolsetsPage } from './components/toolsets/ToolsetsPage';
-import { MessageSquare, FileText, Shield, Wrench } from 'lucide-react';
+import { LoginPage } from './components/auth/LoginPage';
+import { MessageSquare, FileText, Shield, Wrench, LogOut } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { useAuth } from './context/AuthContext';
 
 type Page = 'chat' | 'documents' | 'security' | 'toolsets';
 
 function App() {
   const [currentPage, setCurrentPage] = useState<Page>('chat');
+  const { isAuthenticated, logout } = useAuth();
+
+  // Show login page if not authenticated
+  if (!isAuthenticated) {
+    return <LoginPage />;
+  }
 
   const renderPage = () => {
     switch (currentPage) {
@@ -64,6 +72,16 @@ function App() {
           title="Security"
         >
           <Shield className="h-5 w-5" />
+        </Button>
+        <div className="flex-1" />
+        <Button
+          variant="ghost"
+          size="icon"
+          className="text-slate-400 hover:text-white hover:bg-slate-800"
+          onClick={logout}
+          title="Logout"
+        >
+          <LogOut className="h-5 w-5" />
         </Button>
       </nav>
       <main className="flex-1">
