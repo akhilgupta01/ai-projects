@@ -106,6 +106,7 @@ VITE_API_URL=http://localhost:8080
 # OAuth2 Configuration
 # For Google OAuth: Get these from https://console.cloud.google.com/apis/credentials
 VITE_OAUTH_CLIENT_ID=YOUR_GOOGLE_CLIENT_ID
+VITE_OAUTH_CLIENT_SECRET=YOUR_GOOGLE_CLIENT_SECRET
 VITE_OAUTH_AUTH_ENDPOINT=https://accounts.google.com/o/oauth2/v2/auth
 VITE_OAUTH_TOKEN_ENDPOINT=https://oauth2.googleapis.com/token
 VITE_OAUTH_REDIRECT_URI=http://localhost:5173
@@ -123,7 +124,13 @@ VITE_OAUTH_REDIRECT_URI=http://localhost:5173
 8. Add authorized redirect URIs:
    - `http://localhost:5173` (for development)
    - Your production URL
-9. Copy the Client ID and update your `.env` file
+9. Copy the **Client ID** and **Client Secret** and update your `.env` file
+
+**Security Note:** 
+- The Client Secret is required for the OAuth token exchange when using Web Application OAuth clients in Google Cloud Console.
+- Keep it secure and never commit it to version control (add `.env` to `.gitignore`).
+- **Important:** For production applications, consider using a backend proxy to handle OAuth token exchange instead of exposing the client secret in the frontend. The current implementation is suitable for development and trusted environments where the frontend is deployed securely.
+- For public OAuth clients, configure your OAuth provider to support PKCE without requiring a client secret.
 
 #### Using Auth0 (Alternative)
 
@@ -131,6 +138,7 @@ If using Auth0:
 
 ```properties
 VITE_OAUTH_CLIENT_ID=YOUR_AUTH0_CLIENT_ID
+VITE_OAUTH_CLIENT_SECRET=YOUR_AUTH0_CLIENT_SECRET
 VITE_OAUTH_AUTH_ENDPOINT=https://YOUR_DOMAIN.auth0.com/authorize
 VITE_OAUTH_TOKEN_ENDPOINT=https://YOUR_DOMAIN.auth0.com/oauth/token
 VITE_OAUTH_REDIRECT_URI=http://localhost:5173
@@ -237,12 +245,18 @@ The build output will be in the `dist` directory.
    - Ensure you've set `VITE_OAUTH_CLIENT_ID` in frontend `.env` file
    - Restart the dev server after changing `.env` file
 
-2. **"401 Unauthorized" when calling APIs**
+2. **"client_secret is missing" error on login**
+   - Ensure you've set `VITE_OAUTH_CLIENT_SECRET` in frontend `.env` file
+   - Get the Client Secret from your OAuth provider (Google Cloud Console or Auth0)
+   - Restart the dev server after changing `.env` file
+   - Note: The client secret is required for the OAuth token exchange process
+
+3. **"401 Unauthorized" when calling APIs**
    - Verify your JWT token is valid
    - Check backend logs for token validation errors
    - Ensure OAuth2 issuer URI matches your provider
 
-3. **CORS errors**
+4. **CORS errors**
    - Add your frontend URL to `cors.allowed-origins` in backend `application.properties`
    - Restart the backend after configuration changes
 
