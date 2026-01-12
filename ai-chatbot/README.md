@@ -126,7 +126,11 @@ VITE_OAUTH_REDIRECT_URI=http://localhost:5173
    - Your production URL
 9. Copy the **Client ID** and **Client Secret** and update your `.env` file
 
-**Note:** The Client Secret is required for the OAuth token exchange. Keep it secure and never commit it to version control.
+**Security Note:** 
+- The Client Secret is required for the OAuth token exchange when using Web Application OAuth clients in Google Cloud Console.
+- Keep it secure and never commit it to version control (add `.env` to `.gitignore`).
+- **Important:** For production applications, consider using a backend proxy to handle OAuth token exchange instead of exposing the client secret in the frontend. The current implementation is suitable for development and trusted environments where the frontend is deployed securely.
+- For public OAuth clients, configure your OAuth provider to support PKCE without requiring a client secret.
 
 #### Using Auth0 (Alternative)
 
