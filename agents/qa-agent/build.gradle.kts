@@ -24,6 +24,7 @@ repositories {
 dependencies {
     // ── Spring Boot ──────────────────────────────────────────────────────────
     implementation("org.springframework.boot:spring-boot-starter-web")
+    implementation("org.springframework.boot:spring-boot-starter-jdbc")
 
     // ── Kotlin ───────────────────────────────────────────────────────────────
     implementation("com.fasterxml.jackson.module:jackson-module-kotlin")
@@ -45,6 +46,10 @@ dependencies {
     testImplementation("org.springframework.boot:spring-boot-starter-test")
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.10.2")
     testImplementation("io.mockk:mockk:1.14.3")
+
+    // ── Database drivers ──────────────────────────────────────────────────────
+    runtimeOnly("com.h2database:h2:2.3.232")
+    runtimeOnly("org.postgresql:postgresql:42.7.7")
 }
 
 kotlin {

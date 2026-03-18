@@ -2,11 +2,13 @@ package com.agents.qaagent
 
 import com.agents.qaagent.model.AttributeRule
 import com.agents.qaagent.model.ReportableAttribute
+import com.agents.qaagent.service.AttributePersistenceService
 import com.agents.qaagent.service.QaAgentService
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.module.kotlin.KotlinModule
 import com.google.genai.Client
 import io.mockk.mockk
+import io.mockk.verify
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Assertions.assertTrue
@@ -86,6 +88,44 @@ class QaAgentServiceTest {
 
         val result = service.analyzeDocument(mockFile)
         assertEquals("EMIR_Refit_Spec.pdf", result.documentName)
+    }
+
+    @Test
+    fun `derives jurisdiction from document name when persisting`() {
+        val mockClient = mockk<Client>()
+        val persistence = mockk<AttributePersistenceService>(relaxed = true)
+        val service = object : QaAgentService(
+            genAiClient = mockClient,
+            objectMapper = objectMapper,
+            modelName = "gemini-2.0-flash",
+            reviewReworkCycles = 0,
+            attributePersistenceService = persistence
+        ) {
+            override fun cacheDocument(file: java.io.File, displayName: String): String = "cache-id"
+            override fun runAgent(pdfPath: String, cachedContentName: String): String =
+                """[{"name":"trade_date","description":"Trade date","dataType":"Date","mandatory":true}]"""
+            override fun runReviewAgent(
+                pdfPath: String,
+                cachedContentName: String,
+                currentJson: String
+            ): String = currentJson
+        }
+
+        val mockFile = MockMultipartFile(
+            "file",
+            "EMIR_Refit_Spec.pdf",
+            "application/pdf",
+            "content".toByteArray()
+        )
+
+        service.analyzeDocument(mockFile)
+
+        verify {
+            persistence.saveAttributes(
+                "EMIR_Refit_Spec",
+                match { it.size == 1 && it.first().name == "trade_date" }
+            )
+        }
     }
 
     @Test
@@ -214,7 +254,8 @@ class QaAgentServiceTest {
             genAiClient = mockClient,
             objectMapper = objectMapper,
             modelName = "gemini-2.0-flash",
-            reviewReworkCycles = 3
+            reviewReworkCycles = 3,
+            attributePersistenceService = mockk(relaxed = true)
         ) {
             override fun cacheDocument(file: java.io.File, displayName: String): String = "cache-id"
 
@@ -243,7 +284,8 @@ class QaAgentServiceTest {
             genAiClient = mockClient,
             objectMapper = objectMapper,
             modelName = "gemini-2.0-flash",
-            reviewReworkCycles = 0
+            reviewReworkCycles = 0,
+            attributePersistenceService = mockk(relaxed = true)
         ) {
             override fun cacheDocument(file: java.io.File, displayName: String): String = "cache-id"
 
@@ -272,7 +314,8 @@ class QaAgentServiceTest {
             genAiClient = mockClient,
             objectMapper = objectMapper,
             modelName = "gemini-2.0-flash",
-            reviewReworkCycles = 2
+            reviewReworkCycles = 2,
+            attributePersistenceService = mockk(relaxed = true)
         ) {
             override fun cacheDocument(file: java.io.File, displayName: String): String {
                 tracker += "cache:$displayName"
@@ -319,7 +362,8 @@ class QaAgentServiceTest {
             genAiClient = mockClient,
             objectMapper = objectMapper,
             modelName = "gemini-2.0-flash",
-            reviewReworkCycles = 1
+            reviewReworkCycles = 1,
+            attributePersistenceService = mockk(relaxed = true)
         ) {
             override fun cacheDocument(file: java.io.File, displayName: String): String = "cache-id"
 
@@ -373,8 +417,14 @@ class TestableQaAgentService(
     genAiClient: Client,
     objectMapper: ObjectMapper,
     modelName: String,
-    private val fixedAgentResponse: String
-) : QaAgentService(genAiClient, objectMapper, modelName) {
+    private val fixedAgentResponse: String,
+    attributePersistenceService: AttributePersistenceService = mockk(relaxed = true)
+) : QaAgentService(
+    genAiClient = genAiClient,
+    objectMapper = objectMapper,
+    modelName = modelName,
+    attributePersistenceService = attributePersistenceService
+) {
 
     override fun cacheDocument(file: java.io.File, displayName: String): String = "cached/$displayName"
 

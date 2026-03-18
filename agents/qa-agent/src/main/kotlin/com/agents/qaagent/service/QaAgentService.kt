@@ -18,6 +18,8 @@ import org.springframework.beans.factory.annotation.Value
 import org.springframework.stereotype.Service
 import org.springframework.web.multipart.MultipartFile
 import java.io.File
+import java.nio.file.InvalidPathException
+import java.nio.file.Paths
 import java.nio.file.Files
 
 /**
@@ -40,7 +42,8 @@ open class QaAgentService(
     private val genAiClient: Client,
     private val objectMapper: ObjectMapper,
     @Value("\${vertex.ai.model:gemini-2.0-flash}") private val modelName: String,
-    @Value("\${agent.review.rework.cycles:1}") private val reviewReworkCycles: Int = 1
+    @Value("\${agent.review.rework.cycles:1}") private val reviewReworkCycles: Int = 1,
+    private val attributePersistenceService: AttributePersistenceService
 ) {
 
     private val log = LoggerFactory.getLogger(QaAgentService::class.java)
@@ -80,6 +83,14 @@ open class QaAgentService(
             val attributes = parseAttributes(rawResponse)
             log.info("Extracted {} reportable attributes from {}", attributes.size, documentName)
 
+            val resolvedJurisdiction = deriveJurisdiction(documentName)
+            attributePersistenceService.saveAttributes(resolvedJurisdiction, attributes)
+            log.info(
+                "Persisted {} attributes for jurisdiction {}",
+                attributes.size,
+                resolvedJurisdiction
+            )
+
             return AnalyzeResponse(
                 documentName = documentName,
                 totalAttributes = attributes.size,
@@ -91,6 +102,16 @@ open class QaAgentService(
             tmpFile.delete()
             log.debug("Deleted temporary file: {}", tmpFile.absolutePath)
         }
+    }
+
+    private fun deriveJurisdiction(documentName: String): String {
+        val base = try {
+            Paths.get(documentName).fileName?.toString() ?: documentName
+        } catch (e: InvalidPathException) {
+            documentName
+        }
+        val withoutExtension = base.substringBeforeLast('.', base)
+        return withoutExtension.ifBlank { "UNKNOWN" }
     }
 
     /**
