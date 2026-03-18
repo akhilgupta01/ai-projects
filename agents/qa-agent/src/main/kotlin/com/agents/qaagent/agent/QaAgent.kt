@@ -172,7 +172,7 @@ You will be given:
 2. A JSON array of reportable attributes extracted from that document.
 
 Your task is to **review and refine** the extracted attributes by:
- 1. Re-reading the attached PDF (binary cached content) to verify accuracy and completeness.
+  1. Re-reading the attached PDF (binary cached content) to verify accuracy and completeness.
   2. Resolving any section cross-references (e.g. "see Section 4.2" → look up that section and
      fill in the actual rule details instead of leaving a reference).
   3. Ensuring every attribute has all applicable rules populated, including:

@@ -177,7 +177,7 @@ open class QaAgentService(
 
         val uploaded = genAiClient.files.upload(file, uploadConfig)
         val fileUri = uploaded.uri().orElseThrow {
-            IllegalStateException("Uploaded file URI was not returned by GenAI")
+            IllegalStateException("Uploaded file URI was not returned by GenAI for file: $displayName")
         }
 
         val fileData = FileData.builder()
@@ -207,7 +207,7 @@ open class QaAgentService(
         )
 
         return cached.name().orElseThrow {
-            IllegalStateException("Cached content name was not returned by GenAI")
+            IllegalStateException("Cached content name was not returned by GenAI for file: $displayName")
         }
     }
 
