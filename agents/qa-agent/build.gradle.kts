@@ -50,7 +50,7 @@ dependencies {
 
     // ── Database drivers ──────────────────────────────────────────────────────
     runtimeOnly("com.h2database:h2:2.3.232")
-    runtimeOnly("org.postgresql:postgresql:42.7.4")
+    runtimeOnly("org.postgresql:postgresql:42.7.7")
 }
 
 kotlin {
