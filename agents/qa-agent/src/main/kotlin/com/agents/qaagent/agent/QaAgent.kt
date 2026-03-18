@@ -6,12 +6,10 @@ import ai.koog.agents.core.dsl.builder.forwardTo
 import ai.koog.agents.core.dsl.builder.strategy
 import ai.koog.agents.core.dsl.extension.nodeLLMRequest
 import ai.koog.agents.core.dsl.extension.onAssistantMessage
-import ai.koog.agents.core.tools.ToolRegistry
 import ai.koog.prompt.llm.LLMCapability
 import ai.koog.prompt.llm.LLMProvider
 import ai.koog.prompt.llm.LLModel
 import com.agents.qaagent.executor.GenAIVertexPromptExecutor
-import com.agents.qaagent.tools.PdfTextExtractorTool
 import com.google.genai.Client
 
 /**
@@ -19,22 +17,18 @@ import com.google.genai.Client
  * attributes from a regulatory reporting specification document.
  *
  * ## Workflow
- * 1. **pdf_extract_node** – the agent invokes [PdfTextExtractorTool] to read
- *    the raw text from the uploaded PDF.
- * 2. **attribute_extract_node** – the agent sends the extracted text together
+ * 1. **attribute_extract_node** – the agent sends the attached PDF together
  *    with a detailed system prompt to Vertex AI Gemini, which identifies and
- *    structures the reportable attributes as JSON.
+ *    structures the reportable attributes as JSON using the binary document
+ *    (not text extraction).
  *
- * @param genAiClient  Configured [Client] from the Spring context.
- * @param modelName    Gemini model to use (e.g. `gemini-2.0-flash`).
+ * @param genAiClient        Configured [Client] from the Spring context.
+ * @param modelName          Gemini model to use (e.g. `gemini-2.0-flash`).
+ * @param cachedContentName  Cached content handle for the uploaded PDF.
  */
-fun buildQaAgent(genAiClient: Client, modelName: String): AIAgent {
+fun buildQaAgent(genAiClient: Client, modelName: String, cachedContentName: String): AIAgent {
 
-    val toolRegistry = ToolRegistry {
-        tool(PdfTextExtractorTool)
-    }
-
-    val promptExecutor = GenAIVertexPromptExecutor(genAiClient, modelName)
+    val promptExecutor = GenAIVertexPromptExecutor(genAiClient, modelName, cachedContentName)
 
     val model = LLModel(LLMProvider.Google, modelName, listOf(LLMCapability.Tools))
 
@@ -50,8 +44,7 @@ fun buildQaAgent(genAiClient: Client, modelName: String): AIAgent {
     return AIAgent(
         promptExecutor = promptExecutor,
         strategy = agentStrategy,
-        agentConfig = agentConfig,
-        toolRegistry = toolRegistry
+        agentConfig = agentConfig
     )
 }
 
@@ -60,19 +53,17 @@ fun buildQaAgent(genAiClient: Client, modelName: String): AIAgent {
  * a previously extracted set of reportable attributes.
  *
  * ## Workflow
- * 1. **review_node** – the agent may re-invoke [PdfTextExtractorTool] to look
- *    up section references, then returns the refined attribute JSON.
+ * 1. **review_node** – the agent re-reads the attached PDF (cached binary
+ *    content) to look up section references, then returns the refined
+ *    attribute JSON.
  *
- * @param genAiClient  Configured [Client] from the Spring context.
- * @param modelName    Gemini model to use (e.g. `gemini-2.0-flash`).
+ * @param genAiClient        Configured [Client] from the Spring context.
+ * @param modelName          Gemini model to use (e.g. `gemini-2.0-flash`).
+ * @param cachedContentName  Cached content handle for the uploaded PDF.
  */
-fun buildReviewAgent(genAiClient: Client, modelName: String): AIAgent {
+fun buildReviewAgent(genAiClient: Client, modelName: String, cachedContentName: String): AIAgent {
 
-    val toolRegistry = ToolRegistry {
-        tool(PdfTextExtractorTool)
-    }
-
-    val promptExecutor = GenAIVertexPromptExecutor(genAiClient, modelName)
+    val promptExecutor = GenAIVertexPromptExecutor(genAiClient, modelName, cachedContentName)
 
     val model = LLModel(LLMProvider.Google, modelName, listOf(LLMCapability.Tools))
 
@@ -88,8 +79,7 @@ fun buildReviewAgent(genAiClient: Client, modelName: String): AIAgent {
     return AIAgent(
         promptExecutor = promptExecutor,
         strategy = agentStrategy,
-        agentConfig = agentConfig,
-        toolRegistry = toolRegistry
+        agentConfig = agentConfig
     )
 }
 
@@ -97,6 +87,8 @@ fun buildReviewAgent(genAiClient: Client, modelName: String): AIAgent {
 
 private val SYSTEM_PROMPT = """
 You are a Quality Assurance agent specializing in financial regulatory reporting.
+The full PDF is attached to the conversation as binary cached content. Read the
+attached document directly (do not rely on text-only summaries).
 
 Your task is to analyze a regulatory reporting specification document for a financial
 organization and extract every **reportable attribute** (data field or element that
@@ -180,7 +172,7 @@ You will be given:
 2. A JSON array of reportable attributes extracted from that document.
 
 Your task is to **review and refine** the extracted attributes by:
-  1. Re-reading the document (use the extract_pdf_text tool) to verify accuracy and completeness.
+ 1. Re-reading the attached PDF (binary cached content) to verify accuracy and completeness.
   2. Resolving any section cross-references (e.g. "see Section 4.2" → look up that section and
      fill in the actual rule details instead of leaving a reference).
   3. Ensuring every attribute has all applicable rules populated, including:
@@ -199,4 +191,3 @@ Each object must include all the fields from the original schema:
   mandatoryCondition (if applicable), valueRestrictions (if applicable), rules,
   applicableReportTypes, applicableAssetClasses.
 """.trimIndent()
-

@@ -216,12 +216,14 @@ class QaAgentServiceTest {
             modelName = "gemini-2.0-flash",
             reviewReworkCycles = 3
         ) {
-            override fun runAgent(pdfPath: String): String {
+            override fun cacheDocument(file: java.io.File, displayName: String): String = "cache-id"
+
+            override fun runAgent(pdfPath: String, cachedContentName: String): String {
                 tracker += "extract"
                 return "[]"
             }
 
-            override fun runReviewAgent(pdfPath: String, currentJson: String): String {
+            override fun runReviewAgent(pdfPath: String, cachedContentName: String, currentJson: String): String {
                 tracker += "review"
                 return currentJson
             }
@@ -243,12 +245,14 @@ class QaAgentServiceTest {
             modelName = "gemini-2.0-flash",
             reviewReworkCycles = 0
         ) {
-            override fun runAgent(pdfPath: String): String {
+            override fun cacheDocument(file: java.io.File, displayName: String): String = "cache-id"
+
+            override fun runAgent(pdfPath: String, cachedContentName: String): String {
                 tracker += "extract"
                 return "[]"
             }
 
-            override fun runReviewAgent(pdfPath: String, currentJson: String): String {
+            override fun runReviewAgent(pdfPath: String, cachedContentName: String, currentJson: String): String {
                 tracker += "review"
                 return currentJson
             }
@@ -257,6 +261,50 @@ class QaAgentServiceTest {
         service.analyzeDocument(pdfMockFile("content"))
 
         assertEquals(listOf("extract"), tracker)
+    }
+
+    @Test
+    fun `binary document is cached once and reused across cycles`() {
+        val mockClient = mockk<Client>()
+        val tracker = mutableListOf<String>()
+
+        val service = object : QaAgentService(
+            genAiClient = mockClient,
+            objectMapper = objectMapper,
+            modelName = "gemini-2.0-flash",
+            reviewReworkCycles = 2
+        ) {
+            override fun cacheDocument(file: java.io.File, displayName: String): String {
+                tracker += "cache:$displayName"
+                return "cache-id"
+            }
+
+            override fun runAgent(pdfPath: String, cachedContentName: String): String {
+                tracker += "agent:$cachedContentName"
+                return "[]"
+            }
+
+            override fun runReviewAgent(
+                pdfPath: String,
+                cachedContentName: String,
+                currentJson: String
+            ): String {
+                tracker += "review:$cachedContentName"
+                return currentJson
+            }
+        }
+
+        service.analyzeDocument(pdfMockFile("content"))
+
+        assertEquals(
+            listOf(
+                "cache:test.pdf",
+                "agent:cache-id",
+                "review:cache-id",
+                "review:cache-id"
+            ),
+            tracker
+        )
     }
 
     @Test
@@ -273,8 +321,10 @@ class QaAgentServiceTest {
             modelName = "gemini-2.0-flash",
             reviewReworkCycles = 1
         ) {
-            override fun runAgent(pdfPath: String) = initialJson
-            override fun runReviewAgent(pdfPath: String, currentJson: String): String {
+            override fun cacheDocument(file: java.io.File, displayName: String): String = "cache-id"
+
+            override fun runAgent(pdfPath: String, cachedContentName: String) = initialJson
+            override fun runReviewAgent(pdfPath: String, cachedContentName: String, currentJson: String): String {
                 assertEquals(initialJson, currentJson)
                 return refinedJson
             }
@@ -326,8 +376,10 @@ class TestableQaAgentService(
     private val fixedAgentResponse: String
 ) : QaAgentService(genAiClient, objectMapper, modelName) {
 
-    override fun runAgent(pdfPath: String): String = fixedAgentResponse
+    override fun cacheDocument(file: java.io.File, displayName: String): String = "cached/$displayName"
+
+    override fun runAgent(pdfPath: String, cachedContentName: String): String = fixedAgentResponse
 
     /** Pass-through: review cycles do not alter the fixed response in unit tests. */
-    override fun runReviewAgent(pdfPath: String, currentJson: String): String = currentJson
+    override fun runReviewAgent(pdfPath: String, cachedContentName: String, currentJson: String): String = currentJson
 }
