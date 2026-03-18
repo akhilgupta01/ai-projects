@@ -4,6 +4,7 @@ import com.agents.qaagent.agent.buildQaAgent
 import com.agents.qaagent.agent.buildReviewAgent
 import com.agents.qaagent.model.AnalyzeResponse
 import com.agents.qaagent.model.ReportableAttribute
+import com.agents.qaagent.service.AttributePersistenceService
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.module.kotlin.readValue
 import com.google.genai.Client
@@ -40,7 +41,9 @@ open class QaAgentService(
     private val genAiClient: Client,
     private val objectMapper: ObjectMapper,
     @Value("\${vertex.ai.model:gemini-2.0-flash}") private val modelName: String,
-    @Value("\${agent.review.rework.cycles:1}") private val reviewReworkCycles: Int = 1
+    @Value("\${agent.review.rework.cycles:1}") private val reviewReworkCycles: Int = 1,
+    private val attributePersistenceService: AttributePersistenceService,
+    @Value("\${qa.default-jurisdiction:GLOBAL}") private val defaultJurisdiction: String = "GLOBAL"
 ) {
 
     private val log = LoggerFactory.getLogger(QaAgentService::class.java)
@@ -53,9 +56,10 @@ open class QaAgentService(
      * passes that refine the result before it is returned to the caller.
      *
      * @param file PDF file uploaded via multipart request.
+     * @param jurisdiction Optional jurisdiction to associate with persisted attributes.
      * @return [AnalyzeResponse] containing the extracted and refined attributes.
      */
-    fun analyzeDocument(file: MultipartFile): AnalyzeResponse {
+    fun analyzeDocument(file: MultipartFile, jurisdiction: String? = null): AnalyzeResponse {
         val documentName = file.originalFilename ?: "document.pdf"
         log.info("Starting QA analysis for document: {}", documentName)
 
@@ -79,6 +83,14 @@ open class QaAgentService(
 
             val attributes = parseAttributes(rawResponse)
             log.info("Extracted {} reportable attributes from {}", attributes.size, documentName)
+
+            val resolvedJurisdiction = jurisdiction?.takeUnless { it.isBlank() } ?: defaultJurisdiction
+            attributePersistenceService.saveAttributes(resolvedJurisdiction, attributes)
+            log.info(
+                "Persisted {} attributes for jurisdiction {}",
+                attributes.size,
+                resolvedJurisdiction
+            )
 
             return AnalyzeResponse(
                 documentName = documentName,

@@ -66,7 +66,8 @@ class QaAgentController(private val qaAgentService: QaAgentService) {
         produces = [MediaType.APPLICATION_JSON_VALUE]
     )
     fun analyze(
-        @RequestParam("file") file: MultipartFile
+        @RequestParam("file") file: MultipartFile,
+        @RequestParam(name = "jurisdiction", required = false) jurisdiction: String?
     ): ResponseEntity<AnalyzeResponse> {
         val filename = file.originalFilename ?: ""
 
@@ -78,7 +79,7 @@ class QaAgentController(private val qaAgentService: QaAgentService) {
         }
 
         log.info("Received analyze request for file: {}", filename)
-        val response = qaAgentService.analyzeDocument(file)
+        val response = qaAgentService.analyzeDocument(file, jurisdiction)
         return ResponseEntity.ok(response)
     }
 }

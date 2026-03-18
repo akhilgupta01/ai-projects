@@ -6,6 +6,7 @@ plugins {
     kotlin("jvm") version "2.2.0"
     kotlin("plugin.spring") version "2.2.0"
     kotlin("plugin.serialization") version "2.2.0"
+    kotlin("plugin.jpa") version "2.2.0"
 }
 
 group = "com.agents"
@@ -24,6 +25,7 @@ repositories {
 dependencies {
     // ── Spring Boot ──────────────────────────────────────────────────────────
     implementation("org.springframework.boot:spring-boot-starter-web")
+    implementation("org.springframework.boot:spring-boot-starter-data-jpa")
 
     // ── Kotlin ───────────────────────────────────────────────────────────────
     implementation("com.fasterxml.jackson.module:jackson-module-kotlin")
@@ -45,6 +47,10 @@ dependencies {
     testImplementation("org.springframework.boot:spring-boot-starter-test")
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.10.2")
     testImplementation("io.mockk:mockk:1.14.3")
+
+    // ── Database drivers ──────────────────────────────────────────────────────
+    runtimeOnly("com.h2database:h2:2.3.232")
+    runtimeOnly("org.postgresql:postgresql:42.7.4")
 }
 
 kotlin {
