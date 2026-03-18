@@ -7,7 +7,7 @@ import ai.koog.agents.core.tools.ToolParameterType
 import ai.koog.agents.core.tools.ToolResult
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
-import org.apache.pdfbox.pdmodel.PDDocument
+import org.apache.pdfbox.Loader
 import org.apache.pdfbox.text.PDFTextStripper
 import java.io.File
 
@@ -17,13 +17,13 @@ import java.io.File
  * The tool is invoked by the koog agent when it needs to read the content of a
  * regulatory document in order to identify reportable attributes.
  */
-object PdfTextExtractorTool : Tool<PdfTextExtractorTool.Args, ToolResult.Text> {
+object PdfTextExtractorTool : Tool<PdfTextExtractorTool.Args, ToolResult.Text>() {
 
     @Serializable
     data class Args(
         @SerialName("file_path")
         val filePath: String
-    )
+    ) : Tool.Args
 
     override val argsSerializer = Args.serializer()
 
@@ -48,7 +48,7 @@ object PdfTextExtractorTool : Tool<PdfTextExtractorTool.Args, ToolResult.Text> {
         require(file.exists()) { "PDF file not found: ${args.filePath}" }
         require(file.extension.lowercase() == "pdf") { "File is not a PDF: ${args.filePath}" }
 
-        PDDocument.load(file).use { document ->
+        Loader.loadPDF(file).use { document ->
             val stripper = PDFTextStripper()
             return ToolResult.Text(stripper.getText(document))
         }

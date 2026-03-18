@@ -1,5 +1,6 @@
 package com.agents.qaagent
 
+import com.agents.qaagent.model.AttributeRule
 import com.agents.qaagent.model.ReportableAttribute
 import com.agents.qaagent.service.QaAgentService
 import com.fasterxml.jackson.databind.ObjectMapper
@@ -98,6 +99,189 @@ class QaAgentServiceTest {
         assertNotNull(attr)
         assertEquals(null, attr.format)
         assertEquals(null, attr.source)
+        assertEquals(null, attr.mandatoryCondition)
+        assertEquals(null, attr.valueRestrictions)
+        assertEquals(null, attr.rules)
+        assertEquals(null, attr.applicableReportTypes)
+        assertEquals(null, attr.applicableAssetClasses)
+    }
+
+    // ─── New fields: rules, applicableReportTypes, applicableAssetClasses ─────
+
+    @Test
+    fun `parses new fields rules applicableReportTypes and applicableAssetClasses`() {
+        val json = """
+            [
+              {
+                "name": "trade_date",
+                "description": "Date of trade execution",
+                "dataType": "Date",
+                "mandatory": true,
+                "format": "ISO 8601",
+                "source": "Section 2.1",
+                "applicableReportTypes": ["Trade Report", "Position Report"],
+                "applicableAssetClasses": ["Rates", "FX"],
+                "rules": [
+                  {
+                    "ruleType": "FORMAT",
+                    "description": "Must be in ISO 8601 YYYY-MM-DD format"
+                  }
+                ]
+              }
+            ]
+        """.trimIndent()
+        val service = qaAgentServiceWithFixedResponse(json)
+
+        val result = service.analyzeDocument(pdfMockFile("content"))
+
+        assertEquals(1, result.totalAttributes)
+        val attr = result.attributes.first()
+        assertEquals("trade_date", attr.name)
+        assertEquals(listOf("Trade Report", "Position Report"), attr.applicableReportTypes)
+        assertEquals(listOf("Rates", "FX"), attr.applicableAssetClasses)
+        assertNotNull(attr.rules)
+        assertEquals(1, attr.rules!!.size)
+        assertEquals("FORMAT", attr.rules.first().ruleType)
+        assertEquals("Must be in ISO 8601 YYYY-MM-DD format", attr.rules.first().description)
+    }
+
+    @Test
+    fun `parses mandatoryCondition and valueRestrictions`() {
+        val json = """
+            [
+              {
+                "name": "direction",
+                "description": "Direction of the trade",
+                "dataType": "String",
+                "mandatory": false,
+                "mandatoryCondition": "Mandatory for equity and FX trades",
+                "valueRestrictions": ["BUY", "SELL"],
+                "applicableReportTypes": ["Trade Report"],
+                "applicableAssetClasses": ["Equity", "FX"],
+                "rules": [
+                  {
+                    "ruleType": "MANDATORY_CONDITION",
+                    "description": "Required for equity and FX trades",
+                    "condition": "Asset class is Equity or FX",
+                    "applicableProductTypes": ["Equity Swap", "FX Forward"]
+                  },
+                  {
+                    "ruleType": "VALUE_RESTRICTION",
+                    "description": "Only BUY or SELL are permitted",
+                    "allowedValues": ["BUY", "SELL"]
+                  }
+                ]
+              }
+            ]
+        """.trimIndent()
+        val service = qaAgentServiceWithFixedResponse(json)
+
+        val result = service.analyzeDocument(pdfMockFile("content"))
+        val attr = result.attributes.first()
+
+        assertEquals("Mandatory for equity and FX trades", attr.mandatoryCondition)
+        assertEquals(listOf("BUY", "SELL"), attr.valueRestrictions)
+        assertEquals(2, attr.rules!!.size)
+
+        val mandatoryRule = attr.rules.first { it.ruleType == "MANDATORY_CONDITION" }
+        assertEquals("Asset class is Equity or FX", mandatoryRule.condition)
+        assertEquals(listOf("Equity Swap", "FX Forward"), mandatoryRule.applicableProductTypes)
+
+        val valueRule = attr.rules.first { it.ruleType == "VALUE_RESTRICTION" }
+        assertEquals(listOf("BUY", "SELL"), valueRule.allowedValues)
+    }
+
+    @Test
+    fun `AttributeRule optional fields are nullable`() {
+        val rule = AttributeRule(
+            ruleType = "FORMAT",
+            description = "Must be ISO 8601"
+        )
+        assertNotNull(rule)
+        assertEquals(null, rule.condition)
+        assertEquals(null, rule.allowedValues)
+        assertEquals(null, rule.applicableProductTypes)
+    }
+
+    // ─── Review-rework cycle ──────────────────────────────────────────────────
+
+    @Test
+    fun `review rework cycle is called the configured number of times`() {
+        val mockClient = mockk<Client>()
+        val tracker = mutableListOf<String>()
+
+        val service = object : QaAgentService(
+            genAiClient = mockClient,
+            objectMapper = objectMapper,
+            modelName = "gemini-2.0-flash",
+            reviewReworkCycles = 3
+        ) {
+            override fun runAgent(pdfPath: String): String {
+                tracker += "extract"
+                return "[]"
+            }
+
+            override fun runReviewAgent(pdfPath: String, currentJson: String): String {
+                tracker += "review"
+                return currentJson
+            }
+        }
+
+        service.analyzeDocument(pdfMockFile("content"))
+
+        assertEquals(listOf("extract", "review", "review", "review"), tracker)
+    }
+
+    @Test
+    fun `review rework cycle zero skips review step`() {
+        val mockClient = mockk<Client>()
+        val tracker = mutableListOf<String>()
+
+        val service = object : QaAgentService(
+            genAiClient = mockClient,
+            objectMapper = objectMapper,
+            modelName = "gemini-2.0-flash",
+            reviewReworkCycles = 0
+        ) {
+            override fun runAgent(pdfPath: String): String {
+                tracker += "extract"
+                return "[]"
+            }
+
+            override fun runReviewAgent(pdfPath: String, currentJson: String): String {
+                tracker += "review"
+                return currentJson
+            }
+        }
+
+        service.analyzeDocument(pdfMockFile("content"))
+
+        assertEquals(listOf("extract"), tracker)
+    }
+
+    @Test
+    fun `review agent receives previous extraction output`() {
+        val mockClient = mockk<Client>()
+        val initialJson =
+            """[{"name":"x","description":"d","dataType":"String","mandatory":true}]"""
+        val refinedJson =
+            """[{"name":"x","description":"refined","dataType":"String","mandatory":true}]"""
+
+        val service = object : QaAgentService(
+            genAiClient = mockClient,
+            objectMapper = objectMapper,
+            modelName = "gemini-2.0-flash",
+            reviewReworkCycles = 1
+        ) {
+            override fun runAgent(pdfPath: String) = initialJson
+            override fun runReviewAgent(pdfPath: String, currentJson: String): String {
+                assertEquals(initialJson, currentJson)
+                return refinedJson
+            }
+        }
+
+        val result = service.analyzeDocument(pdfMockFile("content"))
+        assertEquals("refined", result.attributes.first().description)
     }
 
     // ─── Helpers ─────────────────────────────────────────────────────────────
@@ -128,9 +312,12 @@ class QaAgentServiceTest {
 }
 
 /**
- * Testable subclass of [QaAgentService] that bypasses the real agent call and
+ * Testable subclass of [QaAgentService] that bypasses the real agent calls and
  * instead returns a predetermined response string.  This lets us test the
  * parsing and response-assembly logic in isolation.
+ *
+ * Review cycles are also bypassed: [runReviewAgent] simply returns [currentJson]
+ * unchanged, so the fixed extraction response flows through unmodified.
  */
 class TestableQaAgentService(
     genAiClient: Client,
@@ -140,4 +327,7 @@ class TestableQaAgentService(
 ) : QaAgentService(genAiClient, objectMapper, modelName) {
 
     override fun runAgent(pdfPath: String): String = fixedAgentResponse
+
+    /** Pass-through: review cycles do not alter the fixed response in unit tests. */
+    override fun runReviewAgent(pdfPath: String, currentJson: String): String = currentJson
 }

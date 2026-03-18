@@ -1,11 +1,11 @@
-import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
+import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 plugins {
-    id("org.springframework.boot") version "3.2.0"
-    id("io.spring.dependency-management") version "1.1.4"
-    kotlin("jvm") version "1.9.21"
-    kotlin("plugin.spring") version "1.9.21"
-    kotlin("plugin.serialization") version "1.9.21"
+    id("org.springframework.boot") version "3.4.7"
+    id("io.spring.dependency-management") version "1.1.7"
+    kotlin("jvm") version "2.2.0"
+    kotlin("plugin.spring") version "2.2.0"
+    kotlin("plugin.serialization") version "2.2.0"
 }
 
 group = "com.agents"
@@ -28,8 +28,8 @@ dependencies {
     // ── Kotlin ───────────────────────────────────────────────────────────────
     implementation("com.fasterxml.jackson.module:jackson-module-kotlin")
     implementation("org.jetbrains.kotlin:kotlin-reflect")
-    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.8.0")
-    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.3")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.10.2")
+    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.8.1")
 
     // ── koog – JetBrains Kotlin AI agent framework ────────────────────────────
     // Core agent DSL (tools, strategies, AIAgent)
@@ -37,23 +37,23 @@ dependencies {
 
     // ── Google GenAI SDK – Vertex AI Gemini connection ────────────────────────
     // Unified GenAI SDK that supports both Google AI Studio and Vertex AI
-    implementation("com.google.genai:google-genai:1.0.0")
+    implementation("com.google.genai:google-genai:1.2.0")
     // Google auth for Application Default Credentials (ADC)
-    implementation("com.google.auth:google-auth-library-oauth2-http:1.23.0")
+    implementation("com.google.auth:google-auth-library-oauth2-http:1.35.0")
 
     // ── PDF parsing ──────────────────────────────────────────────────────────
-    implementation("org.apache.pdfbox:pdfbox:3.0.1")
+    implementation("org.apache.pdfbox:pdfbox:3.0.7")
 
     // ── Testing ───────────────────────────────────────────────────────────────
     testImplementation("org.springframework.boot:spring-boot-starter-test")
-    testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.8.0")
-    testImplementation("io.mockk:mockk:1.13.10")
+    testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.10.2")
+    testImplementation("io.mockk:mockk:1.14.3")
 }
 
-tasks.withType<KotlinCompile> {
-    kotlinOptions {
-        freeCompilerArgs += "-Xjsr305=strict"
-        jvmTarget = "17"
+kotlin {
+    compilerOptions {
+        freeCompilerArgs.add("-Xjsr305=strict")
+        jvmTarget.set(JvmTarget.JVM_17)
     }
 }
 
