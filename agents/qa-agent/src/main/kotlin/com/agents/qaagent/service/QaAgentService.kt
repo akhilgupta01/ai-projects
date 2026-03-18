@@ -1,6 +1,7 @@
 package com.agents.qaagent.service
 
 import com.agents.qaagent.agent.buildQaAgent
+import com.agents.qaagent.agent.buildReviewAgent
 import com.agents.qaagent.model.AnalyzeResponse
 import com.agents.qaagent.model.ReportableAttribute
 import com.fasterxml.jackson.databind.ObjectMapper
@@ -18,9 +19,11 @@ import java.nio.file.Files
  *
  * 1. Saves the uploaded PDF to a temporary file.
  * 2. Builds a koog [AIAgent] backed by Vertex AI Gemini (via the GenAI SDK).
- * 3. Runs the agent with a prompt that includes the PDF path.
- * 4. Parses the JSON array of [ReportableAttribute] objects from the agent's response.
- * 5. Assembles and returns an [AnalyzeResponse].
+ * 3. Runs the extraction agent with a prompt that includes the PDF path.
+ * 4. Runs up to [reviewReworkCycles] review passes, each of which refines the
+ *    extracted attributes (resolving section references, filling missing rules, etc.).
+ * 5. Parses the final JSON array of [ReportableAttribute] objects.
+ * 6. Assembles and returns an [AnalyzeResponse].
  *
  * The temporary file is always cleaned up after processing.
  */
@@ -28,7 +31,8 @@ import java.nio.file.Files
 open class QaAgentService(
     private val genAiClient: Client,
     private val objectMapper: ObjectMapper,
-    @Value("\${vertex.ai.model:gemini-2.0-flash}") private val modelName: String
+    @Value("\${vertex.ai.model:gemini-2.0-flash}") private val modelName: String,
+    @Value("\${agent.review.rework.cycles:1}") private val reviewReworkCycles: Int = 1
 ) {
 
     private val log = LoggerFactory.getLogger(QaAgentService::class.java)
@@ -37,8 +41,11 @@ open class QaAgentService(
      * Analyze a regulatory reporting specification PDF and return all
      * reportable attributes found within it.
      *
+     * The extraction is followed by [reviewReworkCycles] review-and-rework
+     * passes that refine the result before it is returned to the caller.
+     *
      * @param file PDF file uploaded via multipart request.
-     * @return [AnalyzeResponse] containing the extracted attributes.
+     * @return [AnalyzeResponse] containing the extracted and refined attributes.
      */
     fun analyzeDocument(file: MultipartFile): AnalyzeResponse {
         val documentName = file.originalFilename ?: "document.pdf"
@@ -49,8 +56,16 @@ open class QaAgentService(
             file.transferTo(tmpFile)
             log.debug("Saved uploaded file to: {}", tmpFile.absolutePath)
 
-            val rawResponse = runAgent(tmpFile.absolutePath)
-            log.debug("Agent raw response: {}", rawResponse)
+            // Step 1: initial extraction
+            var rawResponse = runAgent(tmpFile.absolutePath)
+            log.debug("Agent raw response (initial): {}", rawResponse)
+
+            // Step 2: review-rework cycles
+            repeat(reviewReworkCycles) { cycle ->
+                log.info("Starting review-rework cycle {}/{}", cycle + 1, reviewReworkCycles)
+                rawResponse = runReviewAgent(tmpFile.absolutePath, rawResponse)
+                log.debug("Agent raw response (review cycle {}): {}", cycle + 1, rawResponse)
+            }
 
             val attributes = parseAttributes(rawResponse)
             log.info("Extracted {} reportable attributes from {}", attributes.size, documentName)
@@ -69,7 +84,7 @@ open class QaAgentService(
     }
 
     /**
-     * Build and run the koog QA agent against the PDF at [pdfPath].
+     * Build and run the extraction koog agent against the PDF at [pdfPath].
      *
      * Extracted into its own open method so that tests can override it without
      * requiring a live Vertex AI endpoint.
@@ -84,6 +99,37 @@ open class QaAgentService(
             identify and return every reportable attribute as a JSON array.
         """.trimIndent()
         return runBlocking { agent.run(userPrompt) } ?: "[]"
+    }
+
+    /**
+     * Build and run the review koog agent for one review-rework cycle.
+     *
+     * The review agent may re-read the document via the PDF tool to resolve
+     * section cross-references, then returns a refined JSON array.
+     *
+     * Extracted into its own open method so that tests can override it without
+     * requiring a live Vertex AI endpoint.
+     *
+     * @param pdfPath      Path to the original regulatory document.
+     * @param currentJson  The JSON array string produced by the previous pass.
+     * @return             Refined JSON array string.
+     */
+    open fun runReviewAgent(pdfPath: String, currentJson: String): String {
+        val agent = buildReviewAgent(genAiClient, modelName)
+        val userPrompt = """
+            Please review and refine the following extracted reportable attributes
+            from the regulatory reporting specification located at: $pdfPath
+
+            Use the extract_pdf_text tool to re-read the document and resolve any
+            section cross-references, verify completeness of rules, and correct
+            any inaccuracies in applicableReportTypes and applicableAssetClasses.
+
+            Current extraction:
+            $currentJson
+
+            Return the refined JSON array.
+        """.trimIndent()
+        return runBlocking { agent.run(userPrompt) } ?: currentJson
     }
 
     // ─── Private helpers ──────────────────────────────────────────────────────
