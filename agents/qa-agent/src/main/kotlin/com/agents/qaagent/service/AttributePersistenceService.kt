@@ -24,34 +24,40 @@ class AttributePersistenceService(
             return
         }
 
-        attributes.forEach { attribute ->
-            val serialized = objectMapper.writeValueAsString(attribute)
-            val existing = repository.findByAttributeNameAndJurisdiction(attribute.name, jurisdiction)
+        val attributeNames = attributes.map { it.name }
+        val existingByName = repository
+            .findByJurisdictionAndAttributeNameIn(jurisdiction, attributeNames)
+            .associateBy { it.attributeName }
 
+        var createdCount = 0
+        var updatedCount = 0
+
+        val entitiesToSave = attributes.map { attribute ->
+            val serialized = objectMapper.writeValueAsString(attribute)
+            val existing = existingByName[attribute.name]
             if (existing != null) {
                 existing.definitionJson = serialized
                 existing.updatedAt = Instant.now()
-                repository.save(existing)
-                log.debug(
-                    "Updated attribute definition for name={} jurisdiction={}",
-                    attribute.name,
-                    jurisdiction
-                )
+                updatedCount++
+                existing
             } else {
-                repository.save(
-                    AttributeDefinitionEntity(
-                        attributeName = attribute.name,
-                        jurisdiction = jurisdiction,
-                        definitionJson = serialized,
-                        updatedAt = Instant.now()
-                    )
-                )
-                log.debug(
-                    "Created attribute definition for name={} jurisdiction={}",
-                    attribute.name,
-                    jurisdiction
+                createdCount++
+                AttributeDefinitionEntity(
+                    attributeName = attribute.name,
+                    jurisdiction = jurisdiction,
+                    definitionJson = serialized,
+                    updatedAt = Instant.now()
                 )
             }
         }
+
+        repository.saveAll(entitiesToSave)
+        log.debug(
+            "Persisted {} attributes for jurisdiction={} (created={}, updated={})",
+            attributes.size,
+            jurisdiction,
+            createdCount,
+            updatedCount
+        )
     }
 }

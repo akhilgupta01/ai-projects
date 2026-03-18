@@ -4,7 +4,6 @@ import com.agents.qaagent.agent.buildQaAgent
 import com.agents.qaagent.agent.buildReviewAgent
 import com.agents.qaagent.model.AnalyzeResponse
 import com.agents.qaagent.model.ReportableAttribute
-import com.agents.qaagent.service.AttributePersistenceService
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.module.kotlin.readValue
 import com.google.genai.Client
