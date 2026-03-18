@@ -98,7 +98,7 @@ open class QaAgentService(
             Use the extract_pdf_text tool to read the document first, then
             identify and return every reportable attribute as a JSON array.
         """.trimIndent()
-        return runBlocking { agent.run(userPrompt) } ?: "[]"
+        return runBlocking { agent.runAndGetResult(userPrompt) } ?: "[]"
     }
 
     /**
@@ -129,7 +129,7 @@ open class QaAgentService(
 
             Return the refined JSON array.
         """.trimIndent()
-        return runBlocking { agent.run(userPrompt) } ?: currentJson
+        return runBlocking { agent.runAndGetResult(userPrompt) } ?: currentJson
     }
 
     // ─── Private helpers ──────────────────────────────────────────────────────

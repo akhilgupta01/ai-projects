@@ -5,10 +5,11 @@ import ai.koog.agents.core.agent.config.AIAgentConfig
 import ai.koog.agents.core.dsl.builder.forwardTo
 import ai.koog.agents.core.dsl.builder.strategy
 import ai.koog.agents.core.dsl.extension.nodeLLMRequest
-import ai.koog.agents.core.dsl.extension.nodeLLMSendMessage
+import ai.koog.agents.core.dsl.extension.onAssistantMessage
 import ai.koog.agents.core.tools.ToolRegistry
-import ai.koog.prompt.executor.llms.unified.UnifiedLLMPromptExecutor
-import ai.koog.prompt.llm.LLMModel
+import ai.koog.prompt.llm.LLMCapability
+import ai.koog.prompt.llm.LLMProvider
+import ai.koog.prompt.llm.LLModel
 import com.agents.qaagent.executor.GenAIVertexPromptExecutor
 import com.agents.qaagent.tools.PdfTextExtractorTool
 import com.google.genai.Client
@@ -33,29 +34,24 @@ fun buildQaAgent(genAiClient: Client, modelName: String): AIAgent {
         tool(PdfTextExtractorTool)
     }
 
-    val promptExecutor: UnifiedLLMPromptExecutor =
-        GenAIVertexPromptExecutor(genAiClient, modelName)
+    val promptExecutor = GenAIVertexPromptExecutor(genAiClient, modelName)
+
+    val model = LLModel(LLMProvider.Google, modelName, listOf(LLMCapability.Tools))
+
+    val agentConfig = AIAgentConfig.withSystemPrompt(SYSTEM_PROMPT, model, "qa-agent")
 
     val agentStrategy = strategy("regulatory-qa-strategy") {
-        // Node 1: extract PDF text via tool call
-        val pdfExtractNode = nodeLLMRequest("pdf_extract_node")
+        val extractNode by nodeLLMRequest("extract_node")
 
-        // Node 2: extract reportable attributes from the raw text
-        val attributeExtractNode = nodeLLMSendMessage("attribute_extract_node")
-
-        edge(nodeInput forwardTo pdfExtractNode)
-        edge(pdfExtractNode forwardTo attributeExtractNode)
-        edge(attributeExtractNode forwardTo nodeFinish)
+        edge(nodeStart forwardTo extractNode)
+        edge((extractNode forwardTo nodeFinish).onAssistantMessage { true })
     }
 
     return AIAgent(
         promptExecutor = promptExecutor,
-        toolRegistry = toolRegistry,
         strategy = agentStrategy,
-        agentConfig = AIAgentConfig(
-            id = "qa-agent",
-            systemPrompt = SYSTEM_PROMPT
-        )
+        agentConfig = agentConfig,
+        toolRegistry = toolRegistry
     )
 }
 
@@ -76,26 +72,24 @@ fun buildReviewAgent(genAiClient: Client, modelName: String): AIAgent {
         tool(PdfTextExtractorTool)
     }
 
-    val promptExecutor: UnifiedLLMPromptExecutor =
-        GenAIVertexPromptExecutor(genAiClient, modelName)
+    val promptExecutor = GenAIVertexPromptExecutor(genAiClient, modelName)
+
+    val model = LLModel(LLMProvider.Google, modelName, listOf(LLMCapability.Tools))
+
+    val agentConfig = AIAgentConfig.withSystemPrompt(REVIEW_SYSTEM_PROMPT, model, "review-agent")
 
     val agentStrategy = strategy("regulatory-review-strategy") {
-        // Single node: may call the PDF tool to resolve section references,
-        // then returns the refined JSON array
-        val reviewNode = nodeLLMRequest("review_node")
+        val reviewNode by nodeLLMRequest("review_node")
 
-        edge(nodeInput forwardTo reviewNode)
-        edge(reviewNode forwardTo nodeFinish)
+        edge(nodeStart forwardTo reviewNode)
+        edge((reviewNode forwardTo nodeFinish).onAssistantMessage { true })
     }
 
     return AIAgent(
         promptExecutor = promptExecutor,
-        toolRegistry = toolRegistry,
         strategy = agentStrategy,
-        agentConfig = AIAgentConfig(
-            id = "review-agent",
-            systemPrompt = REVIEW_SYSTEM_PROMPT
-        )
+        agentConfig = agentConfig,
+        toolRegistry = toolRegistry
     )
 }
 
@@ -206,9 +200,3 @@ Each object must include all the fields from the original schema:
   applicableReportTypes, applicableAssetClasses.
 """.trimIndent()
 
-// ─── Model wrapper ─────────────────────────────────────────────────────────────
-
-/**
- * A lightweight [LLMModel] wrapper that carries the Vertex AI model name.
- */
-data class VertexGeminiModel(override val id: String) : LLMModel

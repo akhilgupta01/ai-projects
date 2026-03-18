@@ -2,33 +2,32 @@ package com.agents.qaagent.executor
 
 import ai.koog.agents.core.tools.ToolDescriptor
 import ai.koog.agents.core.tools.ToolParameterType
-import ai.koog.prompt.executor.llms.unified.UnifiedLLMPromptExecutor
-import ai.koog.prompt.llm.LLMModel
-import ai.koog.prompt.message.AssistantMessage
+import ai.koog.prompt.dsl.Prompt
+import ai.koog.prompt.executor.model.PromptExecutor
+import ai.koog.prompt.llm.LLModel
 import ai.koog.prompt.message.Message
-import ai.koog.prompt.message.SystemMessage
-import ai.koog.prompt.message.ToolCallMessage
-import ai.koog.prompt.message.ToolResultMessage
-import ai.koog.prompt.message.UserMessage
 import com.google.genai.Client
 import com.google.genai.types.Content
+import com.google.genai.types.FunctionCall
 import com.google.genai.types.FunctionDeclaration
+import com.google.genai.types.FunctionResponse
 import com.google.genai.types.GenerateContentConfig
 import com.google.genai.types.Part
 import com.google.genai.types.Schema
 import com.google.genai.types.Tool
 import com.google.genai.types.Type
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.withContext
 
 /**
- * A koog [UnifiedLLMPromptExecutor] that delegates all LLM calls to
- * **Vertex AI Gemini** using the official Google GenAI SDK
- * (`com.google.genai:google-genai`).
+ * A koog [PromptExecutor] that delegates all LLM calls to **Vertex AI Gemini**
+ * using the official Google GenAI SDK (`com.google.genai:google-genai`).
  *
- * The executor converts koog's prompt messages into the GenAI SDK's
- * [Content] format, executes the request against Vertex AI, and maps
- * the response back into koog's [Message] types.
+ * The executor converts koog's [Prompt] messages into the GenAI SDK's [Content]
+ * format, executes the request against Vertex AI, and maps the response back
+ * into koog's [Message.Response] types.
  *
  * @param client     Configured [Client] (Vertex AI mode).
  * @param modelName  Gemini model to use (e.g. `gemini-2.0-flash`).
@@ -36,24 +35,22 @@ import kotlinx.coroutines.withContext
 class GenAIVertexPromptExecutor(
     private val client: Client,
     private val modelName: String
-) : UnifiedLLMPromptExecutor {
+) : PromptExecutor {
 
     /**
      * Execute a single prompt turn and return the model's response messages.
      *
-     * @param messages   Conversation history as koog [Message] objects.
-     * @param model      The koog [LLMModel] (its id is used as fallback model name).
-     * @param tools      Tool descriptors exposed to the model.
-     * @param jsonSchema Optional JSON schema for structured output.
+     * @param prompt  Conversation history as a koog [Prompt].
+     * @param model   The koog [LLModel] (its id is used as fallback model name).
+     * @param tools   Tool descriptors exposed to the model.
      */
-    override suspend fun executeRequest(
-        messages: List<Message>,
-        model: LLMModel,
-        tools: List<ToolDescriptor>,
-        jsonSchema: String?
-    ): List<Message> = withContext(Dispatchers.IO) {
+    override suspend fun execute(
+        prompt: Prompt,
+        model: LLModel,
+        tools: List<ToolDescriptor>
+    ): List<Message.Response> = withContext(Dispatchers.IO) {
 
-        val contents = messages.mapNotNull { it.toGenAIContent() }
+        val contents = prompt.messages.mapNotNull { it.toGenAIContent() }
 
         val configBuilder = GenerateContentConfig.builder()
         if (tools.isNotEmpty()) {
@@ -66,19 +63,32 @@ class GenAIVertexPromptExecutor(
             configBuilder.build()
         )
 
-        val candidate = response.candidates()?.firstOrNull()
-            ?: return@withContext emptyList()
+        val candidates = response.candidates().orElse(emptyList())
+        val candidate = candidates.firstOrNull() ?: return@withContext emptyList()
 
-        val resultMessages = mutableListOf<Message>()
+        val resultMessages = mutableListOf<Message.Response>()
 
-        candidate.content()?.parts()?.forEach { part ->
+        val parts: List<Part> = candidate.content()
+            .orElse(null)
+            ?.parts()
+            ?.orElse(emptyList())
+            ?: emptyList()
+
+        for (part in parts) {
+            val textOpt = part.text()
+            val fcOpt = part.functionCall()
             when {
-                part.text() != null -> resultMessages += AssistantMessage(part.text()!!)
-                part.functionCall() != null -> {
-                    val fc = part.functionCall()!!
-                    resultMessages += ToolCallMessage(
-                        toolName = fc.name() ?: "",
-                        toolArgs = fc.args()?.toString() ?: "{}"
+                textOpt.isPresent && textOpt.get().isNotBlank() ->
+                    resultMessages += Message.Assistant(textOpt.get())
+
+                fcOpt.isPresent -> {
+                    val fc = fcOpt.get()
+                    val toolName = fc.name().orElse("")
+                    val toolArgs = fc.args().map { it.toString() }.orElse("{}")
+                    resultMessages += Message.Tool.Call(
+                        id = toolName,
+                        tool = toolName,
+                        content = toolArgs
                     )
                 }
             }
@@ -87,30 +97,58 @@ class GenAIVertexPromptExecutor(
         resultMessages
     }
 
+    /** Streaming is not used by the current agent workflow. */
+    override suspend fun executeStreaming(prompt: Prompt, model: LLModel): Flow<String> = flow {
+        throw UnsupportedOperationException(
+            "Streaming is not supported by GenAIVertexPromptExecutor"
+        )
+    }
+
     // ─── Conversion helpers ───────────────────────────────────────────────────
 
     private fun Message.toGenAIContent(): Content? = when (this) {
-        is SystemMessage -> Content.builder()
+        is Message.System -> Content.builder()
             .role("user")
             .parts(listOf(Part.builder().text("[SYSTEM] $content").build()))
             .build()
 
-        is UserMessage -> Content.builder()
+        is Message.User -> Content.builder()
             .role("user")
             .parts(listOf(Part.builder().text(content).build()))
             .build()
 
-        is AssistantMessage -> Content.builder()
+        is Message.Assistant -> Content.builder()
             .role("model")
             .parts(listOf(Part.builder().text(content).build()))
             .build()
 
-        is ToolResultMessage -> Content.builder()
-            .role("user")
-            .parts(listOf(Part.builder().text("[TOOL RESULT: $toolName] $result").build()))
+        is Message.Tool.Call -> Content.builder()
+            .role("model")
+            .parts(listOf(
+                Part.builder()
+                    .functionCall(
+                        FunctionCall.builder()
+                            .name(tool)
+                            .build()
+                    )
+                    .build()
+            ))
             .build()
 
-        is ToolCallMessage -> null // tool calls come from the model, not the user
+        is Message.Tool.Result -> Content.builder()
+            .role("user")
+            .parts(listOf(
+                Part.builder()
+                    .functionResponse(
+                        FunctionResponse.builder()
+                            .name(tool)
+                            .id(id)
+                            .response(mapOf("result" to content))
+                            .build()
+                    )
+                    .build()
+            ))
+            .build()
 
         else -> null
     }
@@ -140,12 +178,12 @@ class GenAIVertexPromptExecutor(
     }
 
     private fun ToolParameterType.toGenAIType(): Type.Known = when (this) {
-        ToolParameterType.String  -> Type.Known.STRING
-        ToolParameterType.Number  -> Type.Known.NUMBER
-        ToolParameterType.Integer -> Type.Known.INTEGER
-        ToolParameterType.Boolean -> Type.Known.BOOLEAN
-        ToolParameterType.Array   -> Type.Known.ARRAY
-        ToolParameterType.Object  -> Type.Known.OBJECT
-        else                      -> Type.Known.STRING
+        is ToolParameterType.String  -> Type.Known.STRING
+        is ToolParameterType.Float   -> Type.Known.NUMBER
+        is ToolParameterType.Integer -> Type.Known.INTEGER
+        is ToolParameterType.Boolean -> Type.Known.BOOLEAN
+        is ToolParameterType.List    -> Type.Known.ARRAY
+        is ToolParameterType.Object  -> Type.Known.OBJECT
+        else                         -> Type.Known.STRING
     }
 }
