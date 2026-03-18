@@ -91,7 +91,7 @@ class QaAgentServiceTest {
     }
 
     @Test
-    fun `persists attributes with resolved jurisdiction`() {
+    fun `derives jurisdiction from document name when persisting`() {
         val mockClient = mockk<Client>()
         val persistence = mockk<AttributePersistenceService>(relaxed = true)
         val service = object : QaAgentService(
@@ -99,8 +99,7 @@ class QaAgentServiceTest {
             objectMapper = objectMapper,
             modelName = "gemini-2.0-flash",
             reviewReworkCycles = 0,
-            attributePersistenceService = persistence,
-            defaultJurisdiction = "EU"
+            attributePersistenceService = persistence
         ) {
             override fun cacheDocument(file: java.io.File, displayName: String): String = "cache-id"
             override fun runAgent(pdfPath: String, cachedContentName: String): String =
@@ -112,20 +111,18 @@ class QaAgentServiceTest {
             ): String = currentJson
         }
 
-        service.analyzeDocument(pdfMockFile("content"))
+        val mockFile = MockMultipartFile(
+            "file",
+            "EMIR_Refit_Spec.pdf",
+            "application/pdf",
+            "content".toByteArray()
+        )
+
+        service.analyzeDocument(mockFile)
 
         verify {
             persistence.saveAttributes(
-                "EU",
-                match { it.size == 1 && it.first().name == "trade_date" }
-            )
-        }
-
-        service.analyzeDocument(pdfMockFile("content"), "US")
-
-        verify {
-            persistence.saveAttributes(
-                "US",
+                "EMIR_Refit_Spec",
                 match { it.size == 1 && it.first().name == "trade_date" }
             )
         }
@@ -423,9 +420,9 @@ class TestableQaAgentService(
     private val fixedAgentResponse: String,
     attributePersistenceService: AttributePersistenceService = mockk(relaxed = true)
 ) : QaAgentService(
-    genAiClient,
-    objectMapper,
-    modelName,
+    genAiClient = genAiClient,
+    objectMapper = objectMapper,
+    modelName = modelName,
     attributePersistenceService = attributePersistenceService
 ) {
 

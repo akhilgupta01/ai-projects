@@ -1,17 +1,17 @@
 package com.agents.qaagent.service
 
 import com.agents.qaagent.model.ReportableAttribute
-import com.agents.qaagent.persistence.AttributeDefinitionEntity
-import com.agents.qaagent.persistence.AttributeDefinitionRepository
 import com.fasterxml.jackson.databind.ObjectMapper
 import org.slf4j.LoggerFactory
+import org.springframework.jdbc.core.JdbcTemplate
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
+import java.sql.Timestamp
 import java.time.Instant
 
 @Service
 class AttributePersistenceService(
-    private val repository: AttributeDefinitionRepository,
+    private val jdbcTemplate: JdbcTemplate,
     private val objectMapper: ObjectMapper
 ) {
 
@@ -24,34 +24,41 @@ class AttributePersistenceService(
             return
         }
 
-        val attributeNames = attributes.map { it.name }
-        val existingByName = repository
-            .findByJurisdictionAndAttributeNameIn(jurisdiction, attributeNames)
-            .associateBy { it.attributeName }
-
         var createdCount = 0
         var updatedCount = 0
+        val now = Timestamp.from(Instant.now())
 
-        val entitiesToSave = attributes.map { attribute ->
+        attributes.forEach { attribute ->
             val serialized = objectMapper.writeValueAsString(attribute)
-            val existing = existingByName[attribute.name]
-            if (existing != null) {
-                existing.definitionJson = serialized
-                existing.updatedAt = Instant.now()
-                updatedCount++
-                existing
-            } else {
-                createdCount++
-                AttributeDefinitionEntity(
-                    attributeName = attribute.name,
-                    jurisdiction = jurisdiction,
-                    definitionJson = serialized,
-                    updatedAt = Instant.now()
+            val updated = jdbcTemplate.update(
+                """
+                UPDATE attribute_definitions
+                SET definition_json = ?, updated_at = ?
+                WHERE attribute_name = ? AND jurisdiction = ?
+                """.trimIndent(),
+                serialized,
+                now,
+                attribute.name,
+                jurisdiction
+            )
+
+            if (updated == 0) {
+                jdbcTemplate.update(
+                    """
+                    INSERT INTO attribute_definitions (attribute_name, jurisdiction, definition_json, updated_at)
+                    VALUES (?, ?, ?, ?)
+                    """.trimIndent(),
+                    attribute.name,
+                    jurisdiction,
+                    serialized,
+                    now
                 )
+                createdCount++
+            } else {
+                updatedCount++
             }
         }
 
-        repository.saveAll(entitiesToSave)
         log.debug(
             "Persisted {} attributes for jurisdiction={} (created={}, updated={})",
             attributes.size,

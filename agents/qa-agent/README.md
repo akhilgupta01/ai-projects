@@ -69,8 +69,6 @@ environment variables:
 | `vertex.ai.project` | `GOOGLE_CLOUD_PROJECT` | *(required)* | GCP project ID |
 | `vertex.ai.location` | `GOOGLE_CLOUD_LOCATION` | `us-central1` | Vertex AI region |
 | `vertex.ai.model` | `GEMINI_MODEL` | `gemini-2.0-flash` | Gemini model name |
-| `qa.default-jurisdiction` | `QA_DEFAULT_JURISDICTION` | `GLOBAL` | Default jurisdiction used when persisting attributes |
-
 ### Database profiles
 
 Persistence is profile-driven:
@@ -109,13 +107,14 @@ The server starts on **http://localhost:8081**.
 Upload a regulatory reporting specification PDF and receive extracted
 reportable attributes.
 
+Jurisdiction used for persistence is derived from the uploaded document name (filename without extension).
+
 **Request**
 ```
 POST /api/qa/analyze
 Content-Type: multipart/form-data
 
 file=<binary PDF>
-jurisdiction=<optional jurisdiction key>
 ```
 
 **Example – cURL**

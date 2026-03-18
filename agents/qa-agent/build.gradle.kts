@@ -6,7 +6,6 @@ plugins {
     kotlin("jvm") version "2.2.0"
     kotlin("plugin.spring") version "2.2.0"
     kotlin("plugin.serialization") version "2.2.0"
-    kotlin("plugin.jpa") version "2.2.0"
 }
 
 group = "com.agents"
@@ -25,7 +24,7 @@ repositories {
 dependencies {
     // ── Spring Boot ──────────────────────────────────────────────────────────
     implementation("org.springframework.boot:spring-boot-starter-web")
-    implementation("org.springframework.boot:spring-boot-starter-data-jpa")
+    implementation("org.springframework.boot:spring-boot-starter-jdbc")
 
     // ── Kotlin ───────────────────────────────────────────────────────────────
     implementation("com.fasterxml.jackson.module:jackson-module-kotlin")

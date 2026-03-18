@@ -18,6 +18,8 @@ import org.springframework.beans.factory.annotation.Value
 import org.springframework.stereotype.Service
 import org.springframework.web.multipart.MultipartFile
 import java.io.File
+import java.nio.file.InvalidPathException
+import java.nio.file.Paths
 import java.nio.file.Files
 
 /**
@@ -41,8 +43,7 @@ open class QaAgentService(
     private val objectMapper: ObjectMapper,
     @Value("\${vertex.ai.model:gemini-2.0-flash}") private val modelName: String,
     @Value("\${agent.review.rework.cycles:1}") private val reviewReworkCycles: Int = 1,
-    private val attributePersistenceService: AttributePersistenceService,
-    @Value("\${qa.default-jurisdiction:GLOBAL}") private val defaultJurisdiction: String = "GLOBAL"
+    private val attributePersistenceService: AttributePersistenceService
 ) {
 
     private val log = LoggerFactory.getLogger(QaAgentService::class.java)
@@ -55,10 +56,9 @@ open class QaAgentService(
      * passes that refine the result before it is returned to the caller.
      *
      * @param file PDF file uploaded via multipart request.
-     * @param jurisdiction Optional jurisdiction to associate with persisted attributes.
      * @return [AnalyzeResponse] containing the extracted and refined attributes.
      */
-    fun analyzeDocument(file: MultipartFile, jurisdiction: String? = null): AnalyzeResponse {
+    fun analyzeDocument(file: MultipartFile): AnalyzeResponse {
         val documentName = file.originalFilename ?: "document.pdf"
         log.info("Starting QA analysis for document: {}", documentName)
 
@@ -83,7 +83,7 @@ open class QaAgentService(
             val attributes = parseAttributes(rawResponse)
             log.info("Extracted {} reportable attributes from {}", attributes.size, documentName)
 
-            val resolvedJurisdiction = jurisdiction?.takeUnless { it.isBlank() } ?: defaultJurisdiction
+            val resolvedJurisdiction = deriveJurisdiction(documentName)
             attributePersistenceService.saveAttributes(resolvedJurisdiction, attributes)
             log.info(
                 "Persisted {} attributes for jurisdiction {}",
@@ -102,6 +102,16 @@ open class QaAgentService(
             tmpFile.delete()
             log.debug("Deleted temporary file: {}", tmpFile.absolutePath)
         }
+    }
+
+    private fun deriveJurisdiction(documentName: String): String {
+        val base = try {
+            Paths.get(documentName).fileName?.toString() ?: documentName
+        } catch (e: InvalidPathException) {
+            documentName
+        }
+        val withoutExtension = base.substringBeforeLast('.', base)
+        return withoutExtension.ifBlank { "UNKNOWN" }
     }
 
     /**
