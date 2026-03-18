@@ -7,23 +7,31 @@ import com.agents.qaagent.model.ReportableAttribute
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.module.kotlin.readValue
 import com.google.genai.Client
+import com.google.genai.types.Content
+import com.google.genai.types.CreateCachedContentConfig
+import com.google.genai.types.FileData
+import com.google.genai.types.Part
+import com.google.genai.types.UploadFileConfig
 import kotlinx.coroutines.runBlocking
 import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.stereotype.Service
 import org.springframework.web.multipart.MultipartFile
+import java.io.File
 import java.nio.file.Files
 
 /**
  * Service that orchestrates the QA agentic workflow:
  *
  * 1. Saves the uploaded PDF to a temporary file.
- * 2. Builds a koog [AIAgent] backed by Vertex AI Gemini (via the GenAI SDK).
- * 3. Runs the extraction agent with a prompt that includes the PDF path.
- * 4. Runs up to [reviewReworkCycles] review passes, each of which refines the
- *    extracted attributes (resolving section references, filling missing rules, etc.).
- * 5. Parses the final JSON array of [ReportableAttribute] objects.
- * 6. Assembles and returns an [AnalyzeResponse].
+ * 2. Uploads the PDF to Vertex AI using the GenAI file API and creates a cached
+ *    content handle so the binary can be reused across prompt turns.
+ * 3. Builds a koog [AIAgent] backed by Vertex AI Gemini (via the GenAI SDK).
+ * 4. Runs the extraction agent with the cached binary PDF attached.
+ * 5. Runs up to [reviewReworkCycles] review passes, reusing the same cached PDF
+ *    to refine the extracted attributes (resolve section references, fill missing rules, etc.).
+ * 6. Parses the final JSON array of [ReportableAttribute] objects.
+ * 7. Assembles and returns an [AnalyzeResponse].
  *
  * The temporary file is always cleaned up after processing.
  */
@@ -56,14 +64,16 @@ open class QaAgentService(
             file.transferTo(tmpFile)
             log.debug("Saved uploaded file to: {}", tmpFile.absolutePath)
 
+            val cachedContentName = cacheDocument(tmpFile, documentName)
+
             // Step 1: initial extraction
-            var rawResponse = runAgent(tmpFile.absolutePath)
+            var rawResponse = runAgent(tmpFile.absolutePath, cachedContentName)
             log.debug("Agent raw response (initial): {}", rawResponse)
 
             // Step 2: review-rework cycles
             repeat(reviewReworkCycles) { cycle ->
                 log.info("Starting review-rework cycle {}/{}", cycle + 1, reviewReworkCycles)
-                rawResponse = runReviewAgent(tmpFile.absolutePath, rawResponse)
+                rawResponse = runReviewAgent(tmpFile.absolutePath, cachedContentName, rawResponse)
                 log.debug("Agent raw response (review cycle {}): {}", cycle + 1, rawResponse)
             }
 
@@ -89,14 +99,16 @@ open class QaAgentService(
      * Extracted into its own open method so that tests can override it without
      * requiring a live Vertex AI endpoint.
      */
-    open fun runAgent(pdfPath: String): String {
-        val agent = buildQaAgent(genAiClient, modelName)
+    open fun runAgent(pdfPath: String, cachedContentName: String): String {
+        val agent = buildQaAgent(genAiClient, modelName, cachedContentName)
         val userPrompt = """
             Please extract all reportable attributes from the regulatory
-            reporting specification located at: $pdfPath
+            reporting specification located at: $pdfPath.
 
-            Use the extract_pdf_text tool to read the document first, then
-            identify and return every reportable attribute as a JSON array.
+            The PDF is already attached to the conversation context (binary,
+            not text-extracted). Use that attachment directly—do not try to
+            re-extract or summarize the document yourself. Identify and return
+            every reportable attribute as a JSON array.
         """.trimIndent()
         return runBlocking { agent.runAndGetResult(userPrompt) } ?: "[]"
     }
@@ -104,8 +116,8 @@ open class QaAgentService(
     /**
      * Build and run the review koog agent for one review-rework cycle.
      *
-     * The review agent may re-read the document via the PDF tool to resolve
-     * section cross-references, then returns a refined JSON array.
+     * The review agent re-reads the cached binary document to resolve section
+     * cross-references, then returns a refined JSON array.
      *
      * Extracted into its own open method so that tests can override it without
      * requiring a live Vertex AI endpoint.
@@ -114,13 +126,14 @@ open class QaAgentService(
      * @param currentJson  The JSON array string produced by the previous pass.
      * @return             Refined JSON array string.
      */
-    open fun runReviewAgent(pdfPath: String, currentJson: String): String {
-        val agent = buildReviewAgent(genAiClient, modelName)
+    open fun runReviewAgent(pdfPath: String, cachedContentName: String, currentJson: String): String {
+        val agent = buildReviewAgent(genAiClient, modelName, cachedContentName)
         val userPrompt = """
             Please review and refine the following extracted reportable attributes
-            from the regulatory reporting specification located at: $pdfPath
+            from the regulatory reporting specification located at: $pdfPath.
 
-            Use the extract_pdf_text tool to re-read the document and resolve any
+            The original PDF is already attached to the conversation context as
+            binary cached content. Re-read it directly to resolve any
             section cross-references, verify completeness of rules, and correct
             any inaccuracies in applicableReportTypes and applicableAssetClasses.
 
@@ -148,6 +161,53 @@ open class QaAgentService(
         } catch (e: Exception) {
             log.error("Failed to parse agent response as JSON: {}", json, e)
             emptyList()
+        }
+    }
+
+    /**
+     * Upload the PDF to Vertex AI via the GenAI SDK and create a cached content
+     * handle that can be reused across extraction and review cycles without
+     * re-sending the binary.
+     */
+    protected open fun cacheDocument(file: File, displayName: String): String {
+        val uploadConfig = UploadFileConfig.builder()
+            .displayName(displayName)
+            .mimeType("application/pdf")
+            .build()
+
+        val uploaded = genAiClient.files.upload(file, uploadConfig)
+        val fileUri = uploaded.uri().orElseThrow {
+            IllegalStateException("Uploaded file URI was not returned by GenAI for file: $displayName")
+        }
+
+        val fileData = FileData.builder()
+            .fileUri(fileUri)
+            .displayName(uploaded.displayName().orElse(displayName))
+            .mimeType(uploaded.mimeType().orElse("application/pdf"))
+            .build()
+
+        val cached = genAiClient.caches.create(
+            modelName,
+            CreateCachedContentConfig.builder()
+                .contents(
+                    listOf(
+                        Content.builder()
+                            .role("user")
+                            .parts(
+                                listOf(
+                                    Part.builder()
+                                        .fileData(fileData)
+                                        .build()
+                                )
+                            )
+                            .build()
+                    )
+                )
+                .build()
+        )
+
+        return cached.name().orElseThrow {
+            IllegalStateException("Cached content name was not returned by GenAI for file: $displayName")
         }
     }
 

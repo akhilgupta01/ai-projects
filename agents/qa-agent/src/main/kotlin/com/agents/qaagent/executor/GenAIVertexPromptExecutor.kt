@@ -34,7 +34,8 @@ import kotlinx.coroutines.withContext
  */
 class GenAIVertexPromptExecutor(
     private val client: Client,
-    private val modelName: String
+    private val modelName: String,
+    private val cachedContentName: String
 ) : PromptExecutor {
 
     /**
@@ -53,6 +54,7 @@ class GenAIVertexPromptExecutor(
         val contents = prompt.messages.mapNotNull { it.toGenAIContent() }
 
         val configBuilder = GenerateContentConfig.builder()
+            .cachedContent(cachedContentName)
         if (tools.isNotEmpty()) {
             configBuilder.tools(listOf(tools.toGenAITool()))
         }

@@ -41,9 +41,6 @@ dependencies {
     // Google auth for Application Default Credentials (ADC)
     implementation("com.google.auth:google-auth-library-oauth2-http:1.35.0")
 
-    // ── PDF parsing ──────────────────────────────────────────────────────────
-    implementation("org.apache.pdfbox:pdfbox:3.0.7")
-
     // ── Testing ───────────────────────────────────────────────────────────────
     testImplementation("org.springframework.boot:spring-boot-starter-test")
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.10.2")

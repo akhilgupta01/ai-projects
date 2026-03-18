@@ -8,7 +8,7 @@ Built with:
 
 * [koog](https://github.com/JetBrains/koog) – JetBrains Kotlin AI agent framework
 * [Google GenAI SDK](https://github.com/googleapis/java-genai) (`com.google.genai:google-genai`) for Vertex AI Gemini
-* [Apache PDFBox](https://pdfbox.apache.org/) for PDF text extraction
+* Google GenAI **file caching** for attaching PDFs to Gemini without text extraction
 * Spring Boot for the REST API
 
 ---
@@ -27,10 +27,9 @@ HTTP POST /api/qa/analyze (multipart PDF)
     2. Build koog AIAgent
     3. Run agent → Vertex AI Gemini (via GenAIVertexPromptExecutor)
          │
-         ├─ extract_pdf_text tool (PdfTextExtractorTool / PDFBox)
-         │        └─ returns raw document text
+         ├─ Upload PDF → GenAI cached content (binary attachment)
          │
-         └─ LLM analyses text → JSON array of ReportableAttribute
+         └─ LLM analyses attached PDF → JSON array of ReportableAttribute
     4. Parse JSON → AnalyzeResponse
     5. Delete temp file
          │
@@ -43,8 +42,7 @@ HTTP POST /api/qa/analyze (multipart PDF)
 | Class | Role |
 |-------|------|
 | `QaAgent.kt` | Builds the koog `AIAgent` with strategy and tool registry |
-| `GenAIVertexPromptExecutor` | Bridges koog's `UnifiedLLMPromptExecutor` to the Google GenAI SDK |
-| `PdfTextExtractorTool` | koog `Tool` that uses PDFBox to read PDF text |
+| `GenAIVertexPromptExecutor` | Bridges koog's `UnifiedLLMPromptExecutor` to the Google GenAI SDK and injects cached PDF content |
 | `QaAgentService` | Orchestrates file handling, agent invocation, response parsing |
 | `QaAgentController` | REST endpoint `/api/qa/analyze` |
 
