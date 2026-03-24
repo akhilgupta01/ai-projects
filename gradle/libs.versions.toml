@@ -1,0 +1,52 @@
+[versions]
+spring-boot-backend = "3.4.7"
+spring-dependency-management-backend = "1.1.7"
+kotlin-backend = "2.2.0"
+
+spring-boot-qa = "3.4.7"
+spring-dependency-management-qa = "1.1.7"
+kotlin-qa = "2.2.0"
+
+kotlinx-coroutines = "1.10.2"
+kotlinx-serialization-json = "1.8.1"
+koog-agents = "0.1.0"
+google-genai = "1.2.0"
+google-auth = "1.35.0"
+mockk = "1.14.3"
+h2 = "2.3.232"
+postgresql = "42.7.7"
+
+[plugins]
+spring-boot-backend = { id = "org.springframework.boot", version.ref = "spring-boot-backend" }
+spring-dependency-management-backend = { id = "io.spring.dependency-management", version.ref = "spring-dependency-management-backend" }
+kotlin-jvm-backend = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin-backend" }
+kotlin-spring-backend = { id = "org.jetbrains.kotlin.plugin.spring", version.ref = "kotlin-backend" }
+
+spring-boot-qa = { id = "org.springframework.boot", version.ref = "spring-boot-qa" }
+spring-dependency-management-qa = { id = "io.spring.dependency-management", version.ref = "spring-dependency-management-qa" }
+kotlin-jvm-qa = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin-qa" }
+kotlin-spring-qa = { id = "org.jetbrains.kotlin.plugin.spring", version.ref = "kotlin-qa" }
+kotlin-serialization-qa = { id = "org.jetbrains.kotlin.plugin.serialization", version.ref = "kotlin-qa" }
+
+[libraries]
+spring-boot-starter-web = { module = "org.springframework.boot:spring-boot-starter-web" }
+spring-boot-starter-security = { module = "org.springframework.boot:spring-boot-starter-security" }
+spring-boot-starter-oauth2-resource-server = { module = "org.springframework.boot:spring-boot-starter-oauth2-resource-server" }
+spring-boot-starter-jdbc = { module = "org.springframework.boot:spring-boot-starter-jdbc" }
+spring-boot-devtools = { module = "org.springframework.boot:spring-boot-devtools" }
+spring-boot-starter-test = { module = "org.springframework.boot:spring-boot-starter-test" }
+spring-security-test = { module = "org.springframework.security:spring-security-test" }
+
+jackson-module-kotlin = { module = "com.fasterxml.jackson.module:jackson-module-kotlin" }
+kotlin-reflect = { module = "org.jetbrains.kotlin:kotlin-reflect" }
+kotlinx-coroutines-core = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-core", version.ref = "kotlinx-coroutines" }
+kotlinx-coroutines-test = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-test", version.ref = "kotlinx-coroutines" }
+kotlinx-serialization-json = { module = "org.jetbrains.kotlinx:kotlinx-serialization-json", version.ref = "kotlinx-serialization-json" }
+
+koog-agents = { module = "ai.koog:koog-agents", version.ref = "koog-agents" }
+google-genai = { module = "com.google.genai:google-genai", version.ref = "google-genai" }
+google-auth-library-oauth2-http = { module = "com.google.auth:google-auth-library-oauth2-http", version.ref = "google-auth" }
+
+mockk = { module = "io.mockk:mockk", version.ref = "mockk" }
+h2 = { module = "com.h2database:h2", version.ref = "h2" }
+postgresql = { module = "org.postgresql:postgresql", version.ref = "postgresql" }

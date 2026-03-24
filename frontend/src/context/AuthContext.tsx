@@ -1,0 +1,131 @@
+import React, { createContext, useContext, useState, useEffect } from "react";
+import {
+  AuthContext as OAuth2Context,
+  AuthProvider as OAuth2Provider,
+  TAuthConfig,
+} from "react-oauth2-code-pkce";
+import { oauth2Config } from "../config/oauth";
+import { setAuthToken } from "../services/api";
+
+interface AuthContextType {
+  isAuthenticated: boolean;
+  token: string | null;
+  login: () => void;
+  logout: () => void;
+  user: any;
+}
+
+const AuthContext = createContext<AuthContextType | undefined>(undefined);
+
+export const useAuth = () => {
+  const context = useContext(AuthContext);
+  if (!context) {
+    throw new Error("useAuth must be used within an AuthProvider");
+  }
+  return context;
+};
+
+interface AuthProviderWrapperProps {
+  children: React.ReactNode;
+}
+
+export const AuthProviderWrapper: React.FC<AuthProviderWrapperProps> = ({
+  children,
+}) => {
+  if (!oauth2Config.authEnabled) {
+    const value: AuthContextType = {
+      isAuthenticated: true,
+      token: null,
+      login: () => {},
+      logout: () => {},
+      user: null,
+    };
+
+    return (
+      <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
+    );
+  }
+
+  const authConfig: TAuthConfig = {
+    clientId: oauth2Config.clientId,
+    authorizationEndpoint: oauth2Config.authorizationEndpoint,
+    tokenEndpoint: oauth2Config.tokenEndpoint,
+    redirectUri: oauth2Config.redirectUri,
+    scope: oauth2Config.scope,
+    autoLogin: false,
+    decodeToken: false, // Disable JWT decoding to prevent decode errors
+    // Add client_secret to token request parameters if provided
+    extraTokenParameters: oauth2Config.clientSecret
+      ? {
+          client_secret: oauth2Config.clientSecret,
+        }
+      : undefined,
+  };
+
+  return (
+    <OAuth2Provider authConfig={authConfig}>
+      <AuthProviderInternal>{children}</AuthProviderInternal>
+    </OAuth2Provider>
+  );
+};
+
+const AuthProviderInternal: React.FC<AuthProviderWrapperProps> = ({
+  children,
+}) => {
+  const { token, tokenData, login, logOut, idToken } =
+    useContext(OAuth2Context);
+  const [isAuthenticated, setIsAuthenticated] = useState(
+    !oauth2Config.authEnabled,
+  );
+  const [user, setUser] = useState<any>(null);
+
+  useEffect(() => {
+    if (!oauth2Config.authEnabled) {
+      setIsAuthenticated(true);
+      setUser(null);
+      setAuthToken(null);
+      return;
+    }
+
+    // Use idToken if available (proper JWT), otherwise fall back to access token
+    const jwtToken = idToken || token;
+
+    if (jwtToken) {
+      setIsAuthenticated(true);
+      // Set the JWT token in the API service for authenticated requests
+      setAuthToken(jwtToken);
+      console.log("Token type:", idToken ? "ID Token (JWT)" : "Access Token");
+      console.log("Token preview:", jwtToken.substring(0, 50) + "...");
+
+      // Extract user info from token data if available
+      if (tokenData) {
+        setUser({
+          email: tokenData.email || null,
+          name: tokenData.name || null,
+        });
+      }
+    } else {
+      setIsAuthenticated(false);
+      setUser(null);
+      setAuthToken(null);
+    }
+  }, [token, tokenData, idToken]);
+
+  const handleLogout = () => {
+    logOut();
+    setIsAuthenticated(false);
+    setUser(null);
+    // Clear the API token to ensure no stale token is used
+    setAuthToken(null);
+  };
+
+  const value: AuthContextType = {
+    isAuthenticated,
+    token: idToken || token,
+    login,
+    logout: handleLogout,
+    user,
+  };
+
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+};
